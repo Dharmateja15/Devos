@@ -1,1 +1,1 @@
-Thsi folder contains all the documents
+This folder contains all the documents
