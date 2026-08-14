@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { apiFetch } from '../../../lib/api';
 import Link from 'next/link';
 
 export default function MilestoneDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -12,31 +13,27 @@ export default function MilestoneDetailPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     if (accessToken) {
-      fetch(`http://localhost:3001/api/v1/milestones/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .then(res => res.json())
-      .then(data => setMilestone(data));
+      apiFetch(`/api/v1/milestones/${id}`, { accessToken })
+        .then(data => setMilestone(data))
+        .catch(err => console.error('Failed to load milestone detail', err));
     }
   }, [accessToken, id]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch(`http://localhost:3001/api/v1/milestones/${id}/tasks`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ title }),
-    });
-    if (res.ok) {
-      const newTask = await res.json();
+    try {
+      const newTask = await apiFetch(`/api/v1/milestones/${id}/tasks`, {
+        method: 'POST',
+        accessToken,
+        body: JSON.stringify({ title }),
+      });
       setMilestone({
         ...milestone,
         tasks: [...(milestone.tasks || []), newTask]
       });
       setTitle('');
+    } catch (err) {
+      console.error('Failed to create task', err);
     }
   };
 

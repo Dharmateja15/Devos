@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { apiFetch } from '../../../lib/api';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -14,42 +15,40 @@ export default function JourneyDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     if (accessToken) {
-      fetch(`http://localhost:3001/api/v1/journeys/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .then(res => res.json())
-      .then(data => setJourney(data));
+      apiFetch(`/api/v1/journeys/${id}`, { accessToken })
+        .then(data => setJourney(data))
+        .catch(err => console.error('Failed to load journey detail', err));
     }
   }, [accessToken, id]);
 
   const handleCreateMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch(`http://localhost:3001/api/v1/journeys/${id}/milestones`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ title }),
-    });
-    if (res.ok) {
-      const newMilestone = await res.json();
+    try {
+      const newMilestone = await apiFetch(`/api/v1/journeys/${id}/milestones`, {
+        method: 'POST',
+        accessToken,
+        body: JSON.stringify({ title }),
+      });
       setJourney({
         ...journey,
         milestones: [...(journey.milestones || []), newMilestone]
       });
       setTitle('');
+    } catch (err) {
+      console.error('Failed to create milestone', err);
     }
   };
 
   const handleDelete = async () => {
     if (!confirm('Are you sure?')) return;
-    const res = await fetch(`http://localhost:3001/api/v1/journeys/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (res.ok) {
+    try {
+      await apiFetch(`/api/v1/journeys/${id}`, {
+        method: 'DELETE',
+        accessToken,
+      });
       router.push('/journeys');
+    } catch (err) {
+      console.error('Failed to delete journey', err);
     }
   };
 

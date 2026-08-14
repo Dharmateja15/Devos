@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { API_BASE_URL } from '../api';
 
 export type LearnerState = 'UNKNOWN' | 'SELF_REPORTED' | 'ASSESSED' | 'MASTERED' | 'NEEDS_REVIEW';
 export type FreshnessState = 'FRESH' | 'AGING' | 'STALE' | 'UNKNOWN_FRESHNESS';

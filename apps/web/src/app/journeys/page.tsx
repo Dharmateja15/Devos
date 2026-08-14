@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import Link from 'next/link';
 
 export default function JourneysPage() {
@@ -12,29 +13,25 @@ export default function JourneysPage() {
 
   useEffect(() => {
     if (accessToken) {
-      fetch('http://localhost:3001/api/v1/journeys', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .then(res => res.json())
-      .then(data => setJourneys(data));
+      apiFetch('/api/v1/journeys', { accessToken })
+        .then(data => setJourneys(data))
+        .catch(err => console.error('Failed to load journeys', err));
     }
   }, [accessToken]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('http://localhost:3001/api/v1/journeys', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ title, category }),
-    });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await apiFetch('/api/v1/journeys', {
+        method: 'POST',
+        accessToken,
+        body: JSON.stringify({ title, category }),
+      });
       setJourneys([data, ...journeys] as any);
       setTitle('');
       setCategory('');
+    } catch (err) {
+      console.error('Failed to create journey', err);
     }
   };
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { apiFetch } from '../../../lib/api';
 import Link from 'next/link';
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,99 +17,75 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => {
     if (accessToken) {
-      fetch(`http://localhost:3001/api/v1/tasks/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .then(res => res.json())
-      .then(data => setTask(data));
+      apiFetch(`/api/v1/tasks/${id}`, { accessToken })
+        .then(data => setTask(data))
+        .catch(err => setError(err.message));
 
-      fetch(`http://localhost:3001/api/v1/evidence?taskId=${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      .then(res => res.json())
-      .then(data => setEvidenceList(data));
+      apiFetch(`/api/v1/evidence?taskId=${id}`, { accessToken })
+        .then(data => setEvidenceList(data))
+        .catch(err => setError(err.message));
     }
   }, [accessToken, id]);
 
   const updateStatus = async (status: string) => {
     setError(null);
-    const res = await fetch(`http://localhost:3001/api/v1/tasks/${id}`, {
-      method: 'PATCH',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ status }),
-    });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await apiFetch(`/api/v1/tasks/${id}`, {
+        method: 'PATCH',
+        accessToken,
+        body: JSON.stringify({ status }),
+      });
       setTask(data);
-    } else {
-      const e = await res.json();
-      setError(e.message);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
   const completeTask = async () => {
     setError(null);
-    const res = await fetch(`http://localhost:3001/api/v1/tasks/${id}/complete`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ independenceSignal }),
-    });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await apiFetch(`/api/v1/tasks/${id}/complete`, {
+        method: 'POST',
+        accessToken,
+        body: JSON.stringify({ independenceSignal }),
+      });
       setTask(data);
-    } else {
-      const e = await res.json();
-      setError(e.message);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
   const uncompleteTask = async () => {
     setError(null);
-    const res = await fetch(`http://localhost:3001/api/v1/tasks/${id}/uncomplete`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await apiFetch(`/api/v1/tasks/${id}/uncomplete`, {
+        method: 'POST',
+        accessToken,
+      });
       setTask(data);
-    } else {
-      const e = await res.json();
-      setError(e.message);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
   const attachEvidence = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = await fetch(`http://localhost:3001/api/v1/evidence`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        taskId: id,
-        evidenceType: 'EXTERNAL_URL',
-        title: evidenceTitle,
-        url: evidenceUrl,
-      }),
-    });
-    if (res.ok) {
-      const newEv = await res.json();
+    try {
+      const newEv = await apiFetch(`/api/v1/evidence`, {
+        method: 'POST',
+        accessToken,
+        body: JSON.stringify({
+          taskId: id,
+          evidenceType: 'EXTERNAL_URL',
+          title: evidenceTitle,
+          url: evidenceUrl,
+        }),
+      });
       setEvidenceList([newEv, ...evidenceList]);
       setEvidenceTitle('');
       setEvidenceUrl('');
-    } else {
-      const err = await res.json();
+    } catch (err: any) {
       setError(err.message);
     }
   };

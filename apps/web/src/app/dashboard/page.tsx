@@ -1,58 +1,23 @@
 'use client';
-import { useEffect, useState } from 'react';
+
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { accessToken, user, setUser, logout, refresh } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<any>(null);
+  const { user, stats, loading, logout } = useAuth();
 
   useEffect(() => {
-    const fetchUser = async () => {
-      let currentToken = accessToken;
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [loading, user, router]);
 
-      if (!currentToken) {
-        currentToken = await refresh();
-        if (!currentToken) {
-          router.push('/login');
-          return;
-        }
-      }
-
-      const res = await fetch('http://localhost:3001/api/v1/auth/me', {
-        headers: { Authorization: `Bearer ${currentToken}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        setStats(data.stats);
-        setLoading(false);
-      } else {
-        // Try refresh once
-        currentToken = await refresh();
-        if (currentToken) {
-          const retryRes = await fetch('http://localhost:3001/api/v1/auth/me', {
-            headers: { Authorization: `Bearer ${currentToken}` },
-          });
-          if (retryRes.ok) {
-            const data = await retryRes.json();
-            setUser(data.user);
-            setStats(data.stats);
-            setLoading(false);
-            return;
-          }
-        }
-        router.push('/login');
-      }
-    };
-    fetchUser();
-  }, [router, accessToken, refresh, setUser]);
-
-  if (loading || !user) return <div>Loading...</div>;
+  if (loading || !user) {
+    return <div style={{ padding: 20 }}>Loading...</div>;
+  }
 
   return (
     <div style={{ padding: 20 }}>
@@ -65,9 +30,9 @@ export default function DashboardPage() {
           <p><strong>XP Balance:</strong> {stats.xp}</p>
           <p><strong>Current Streak:</strong> {stats.streak} days (Longest: {stats.longestStreak} days)</p>
           <div>
-            <strong>Achievements ({stats.achievements.length}):</strong>
+            <strong>Achievements ({stats.achievements?.length || 0}):</strong>
             <ul>
-              {stats.achievements.map((ach: any) => (
+              {stats.achievements?.map((ach: any) => (
                 <li key={ach.id}>{ach.name} - {ach.description}</li>
               ))}
             </ul>
