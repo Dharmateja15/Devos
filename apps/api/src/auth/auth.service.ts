@@ -64,7 +64,7 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    await this.prisma.session.create({
+    const session = await this.prisma.session.create({
       data: {
         userId,
         refreshTokenHash,
@@ -74,7 +74,7 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken,
+      refreshToken: `${session.id}:${refreshToken}`,
     };
   }
 

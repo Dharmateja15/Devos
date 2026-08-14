@@ -49,17 +49,18 @@ describe('AuthService', () => {
     it('should register a valid user and return a token', async () => {
       jest.spyOn(prismaService.user, 'findFirst').mockResolvedValue(null);
       jest.spyOn(prismaService.user, 'create').mockResolvedValue({ id: 'uuid' } as any);
-      jest.spyOn(prismaService.session, 'create').mockResolvedValue({} as any);
+      jest.spyOn(prismaService.session, 'create').mockResolvedValue({ id: 'session-123' } as any);
       
       const result = await service.register({ email: 't@t.com', username: 't', password: 'pw' });
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
+      expect(result.refreshToken).toMatch(/^session-123:[a-f0-9]+$/);
     });
 
     it('should securely hash password with argon2id and not store plaintext', async () => {
       jest.spyOn(prismaService.user, 'findFirst').mockResolvedValue(null);
       const createSpy = jest.spyOn(prismaService.user, 'create').mockResolvedValue({ id: 'uuid' } as any);
-      jest.spyOn(prismaService.session, 'create').mockResolvedValue({} as any);
+      jest.spyOn(prismaService.session, 'create').mockResolvedValue({ id: 'session-123' } as any);
       
       await service.register({ email: 't@t.com', username: 't', password: 'plain-password' });
       const createArgs = createSpy.mock.calls[0][0];
@@ -77,11 +78,12 @@ describe('AuthService', () => {
         id: 'uuid',
         passwordHash: hash,
       } as any);
-      jest.spyOn(prismaService.session, 'create').mockResolvedValue({} as any);
+      jest.spyOn(prismaService.session, 'create').mockResolvedValue({ id: 'session-123' } as any);
 
       const result = await service.login({ identity: 'test', password: 'correct-pw' });
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
+      expect(result.refreshToken).toMatch(/^session-123:[a-f0-9]+$/);
     });
 
     it('should throw on invalid password', async () => {
