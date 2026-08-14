@@ -1,7 +1,7 @@
 # DevOS — Technical Build Plan
-**Version:** 1.0  
+**Version:** 1.1  
 **Prepared for:** Antigravity (Solo Developer, AI-Assisted)  
-**Date:** June 2026  
+**Date:** August 2026  
 **Stack:** TypeScript · NestJS · Next.js 15 · PostgreSQL · Redis · Prisma · Turborepo
 
 ---
@@ -26,7 +26,7 @@ Complexity ratings use this scale:
 
 ### What MVP Must Prove
 
-DevOS MVP has one job: demonstrate the core learning loop. A user creates a journey, adds milestones and tasks, completes tasks, earns XP, and can see their progress. Everything else is Phase 2+.
+DevOS MVP has one job: demonstrate the core learning loop. A user creates a journey, imports or defines an external roadmap via Roadmap Intelligence, reconciles past progress, starts from their actual current position, completes tasks, earns XP, and sees their progress. Everything else is Phase 2+.
 
 ### MVP Feature Set (Hard Boundary)
 
@@ -34,27 +34,27 @@ DevOS MVP has one job: demonstrate the core learning loop. A user creates a jour
 - User registration and login (email + GitHub OAuth)
 - Create, edit, and delete journeys
 - Milestones and tasks within journeys
+- **Roadmap Intelligence MVP** (roadmap.sh primary structured adapter, CSV/Markdown adapters, PDF/DOCX fallback, RoadmapSnapshot/Node/Mapping persistence, Reconciliation Engine with confidence scoring, Day 2 current position calculation, progressive task materialization)
+- **Learning Intelligence MVP** (Learner State tracking, Independence Signals, AI Gateway abstraction, Dynamic Task Types, selective lightweight mastery checks, Graceful Degradation, deterministic execution)
 - Mark tasks complete (with XP award)
+- Projects screen (basic CRUD, journey linkage, +100 XP completion trigger)
+- Daily Logs / Reflections (daily learning reflection logging, mood, wins, challenges, +5 XP)
 - Notes on tasks and journeys
-- Manual evidence entries (no GitHub sync yet)
+- Manual evidence entries
 - Basic XP ledger and level display
 - Streak tracking (daily activity)
 - Core achievements (10 achievements)
 - Public profile (read-only, toggled on/off)
-- CSV import of tasks
-- Basic dashboard (active journeys + today's tasks + recent activity)
+- Basic dashboard (active journeys + today's focus + recent activity + roadmap position)
 
 **Explicitly NOT in MVP:**
 - GitHub commit sync (Phase 2)
 - Recruiter mode / share links (Phase 2)
 - Certificate evidence (Phase 2)
-- Projects screen (Phase 2)
 - Skill graph (Phase 3)
 - AI Mentor (Phase 3)
 - Resume generator (Phase 3)
 - Real-time WebSocket notifications (Phase 2)
-- Excel / Markdown import (Phase 2)
-- Reflections (deprioritised — notes covers this)
 - Analytics dashboard (Phase 2)
 - File upload evidence (Phase 2)
 
@@ -100,7 +100,7 @@ Build the database in dependency order. A table should never be created before t
 
 ```
 Enable: uuid-ossp, pgcrypto, pg_trgm (for search)
-Create schemas: identity, journey, evidence, gamification, social, events
+Create schemas: identity, roadmap, journey, evidence, gamification, social, events
 ```
 
 Nothing depends on this. Do it first, do it once.
@@ -119,47 +119,59 @@ Depends on: users. Stores GitHub (and future Google) OAuth tokens. Encrypted tok
 
 Depends on: users. Refresh token store. Simple table — id, user_id, refresh_token_hash, expires_at, last_active_at.
 
-### Step 5 — journey.journeys (S)
+### Step 5 — roadmap.roadmap_snapshots (S)
+
+Depends on: users. Versioned snapshot of external roadmap source (roadmap.sh, CSV, Markdown, Document fallback).
+
+### Step 6 — roadmap.roadmap_nodes (M)
+
+Depends on: roadmap_snapshots. Individual external roadmap structure (topic, milestone, skill, project, resource, decision, optional topic). Represents external recommendation, NOT a DevOS task.
+
+### Step 7 — roadmap.roadmap_mappings (M)
+
+Depends on: roadmap_nodes, users, journeys, tasks (nullable), projects (nullable), skills (nullable). Bridge table linking external nodes to user progress state with confidence scoring and mapping status.
+
+### Step 8 — journey.journeys (S)
 
 Depends on: users. The central aggregate. Add the `deleted_at` column and the partial index (`WHERE deleted_at IS NULL`) immediately — soft deletes must be in place before any data is written.
 
-### Step 6 — journey.milestones (XS)
+### Step 9 — journey.milestones (XS)
 
 Depends on: journeys. Ordered by `sort_order`. No complex logic in the schema itself.
 
-### Step 7 — journey.tasks (S)
+### Step 10 — journey.tasks (S)
 
 Depends on: milestones AND journeys (denormalised FK for fast journey-level queries). The `status` CHECK constraint and `xp_reward` default belong here, not in application code.
 
-### Step 8 — journey.notes (XS)
+### Step 11 — journey.notes (XS)
 
 Depends on: journeys, tasks (nullable), milestones (nullable). All foreign keys are nullable — a note can exist at the journey level with no task or milestone association.
 
-### Step 9 — evidence.evidence_items (M)
+### Step 12 — evidence.evidence_items (M)
 
 Depends on: users, tasks (nullable), journeys (nullable). The polymorphic `evidence_type` column with a CHECK constraint. The GitHub-specific columns (github_sha, github_repo, etc.) are nullable and ignored in MVP — they exist in schema from day one to avoid a migration later.
 
-### Step 10 — gamification.xp_ledger (S)
+### Step 13 — gamification.xp_ledger (S)
 
 Depends on: users, journeys (nullable). Append-only. Add a database-level trigger or application-level guard to prevent UPDATE on this table. The `balance_after` denormalised column must be maintained correctly from day one.
 
-### Step 11 — gamification.streaks (XS)
+### Step 14 — gamification.streaks (XS)
 
 Depends on: users, journeys (nullable). One row per user (or per journey in future). Simple upsert pattern.
 
-### Step 12 — gamification.achievements (XS)
+### Step 15 — gamification.achievements (XS)
 
 No foreign keys — global definition table. Seed this with the 10 MVP achievements immediately after creating the table. Achievement definitions are code, not user data.
 
-### Step 13 — gamification.achievement_awards (XS)
+### Step 16 — gamification.achievement_awards (XS)
 
 Depends on: users, achievements, journeys (nullable). The `UNIQUE (user_id, achievement_id)` constraint is the idempotency guard — the application can safely attempt to award the same achievement twice without duplicating.
 
-### Step 14 — social.public_profiles (XS)
+### Step 17 — social.public_profiles (XS)
 
 Depends on: users. One-to-one with users (UNIQUE constraint on user_id). Created lazily when a user first visits their profile settings.
 
-### Step 15 — events.outbox (S)
+### Step 18 — events.outbox (S)
 
 Depends on: nothing (stores user_id as raw UUID, no FK — outbox must never block on FK constraint failures). Add the partial index on `published = FALSE` immediately.
 
@@ -173,21 +185,24 @@ Phase 0:
   004_identity_sessions
 
 Phase 1:
-  005_journey_journeys
-  006_journey_milestones
-  007_journey_tasks
-  008_journey_notes
-  009_evidence_evidence_items
-  010_gamification_xp_ledger
-  011_gamification_streaks
-  012_gamification_achievements
-  013_gamification_achievement_awards
-  014_events_outbox
+  005_roadmap_snapshots
+  006_roadmap_nodes
+  007_roadmap_mappings
+  008_journey_journeys
+  009_journey_milestones
+  010_journey_tasks
+  011_journey_notes
+  012_evidence_evidence_items
+  013_gamification_xp_ledger
+  014_gamification_streaks
+  015_gamification_achievements
+  016_gamification_achievement_awards
+  017_events_outbox
 
 Phase 2:
-  015_social_public_profiles
-  016_indexes_fts (full-text search indexes)
-  017_rls_policies (Row Level Security)
+  018_social_public_profiles
+  019_indexes_fts (full-text search indexes)
+  020_rls_policies (Row Level Security)
 ```
 
 **Defer to Phase 2:**
@@ -254,7 +269,66 @@ GET  /api/v1/auth/me
 
 ---
 
-### Module 3 — Journeys CRUD (Phase 1) — M
+### Module 3 — Roadmap Intelligence (Phase 1) — XL
+
+**What:** Ingest external roadmaps (roadmap.sh primary structured source, CSV, Markdown, Document fallback), extract into `RoadmapSnapshot` and `RoadmapNode` entities, reconcile against user history into `RoadmapMapping` records with confidence scores, prompt user review for ambiguous matches, calculate Day 2 current starting position, and manage progressive task materialization.
+
+**Module Structure:**
+```
+roadmap/
+├── roadmap.controller.ts
+├── roadmap.service.ts
+├── roadmap-reconciliation.service.ts
+├── roadmap-progress.service.ts
+├── roadmap.module.ts
+├── adapters/
+│   ├── roadmap-adapter.interface.ts
+│   ├── roadmapsh.adapter.ts
+│   ├── csv.adapter.ts
+│   └── document.adapter.ts
+├── dto/
+│   ├── import-roadmap.dto.ts
+│   ├── review-mapping.dto.ts
+│   └── start-roadmap.dto.ts
+└── roadmap.types.ts
+```
+
+**Endpoints:**
+```
+POST   /api/v1/roadmaps/import            (accepts source URL or file upload)
+POST   /api/v1/roadmaps/:id/analyze       (runs adapter extraction -> RoadmapSnapshot & Nodes)
+POST   /api/v1/roadmaps/:id/reconcile     (runs Reconciliation Engine against user history)
+GET    /api/v1/roadmaps/:id/mappings      (fetches node mappings, confidence scores & reasons)
+PATCH  /api/v1/roadmaps/mappings/:mappingId (user manual override of mapping status)
+POST   /api/v1/roadmaps/:id/start         (establishes current position & materializes initial tasks)
+GET    /api/v1/roadmaps/:id/progress      (fetches current roadmap node & milestone completion)
+GET    /api/v1/roadmaps/:id/next          (recalculates next recommended learning step)
+```
+
+**Sequential Implementation Order:**
+1. Define normalized roadmap types (`roadmap.types.ts`)
+2. Define `RoadmapSourceAdapter` interface
+3. Implement `roadmap.sh` adapter (`roadmapsh.adapter.ts`)
+4. Implement CSV adapter (`csv.adapter.ts`)
+5. Implement `RoadmapSnapshot` persistence
+6. Implement `RoadmapNode` persistence
+7. Implement `RoadmapMapping` persistence
+8. Implement deterministic reconciliation algorithm
+9. Add confidence scoring logic (95-100%, 80-94%, 50-79%, <50%)
+10. Add user confirmation & override handler
+11. Implement current-position calculation (Day 2 behavior)
+12. Implement progressive task materialization
+13. Implement daily continuation recalculation loop
+14. Integrate with Journey aggregate
+15. Integrate with Dashboard & Today's Focus
+16. Add duplicate-prevention tests
+17. Add incorrect-completion protection tests
+
+**Complexity:** XL
+
+---
+
+### Module 4 — Journeys CRUD (Phase 1) — M
 
 **What:** Full CRUD for journeys. Belongs to the authenticated user.
 
@@ -278,7 +352,7 @@ GET    /api/v1/journeys/:id/stats  (XP, completion %, streak)
 
 ---
 
-### Module 4 — Milestones CRUD (Phase 1) — S
+### Module 5 — Milestones CRUD (Phase 1) — S
 
 **What:** CRUD for milestones, scoped to a journey.
 
@@ -300,7 +374,7 @@ PATCH  /api/v1/journeys/:journeyId/milestones/reorder   (bulk sort_order update)
 
 ---
 
-### Module 5 — Tasks CRUD + Completion (Phase 1) — M
+### Module 6 — Tasks CRUD + Completion (Phase 1) — M
 
 **What:** CRUD for tasks, plus the completion action that triggers XP and streak logic.
 
@@ -328,7 +402,7 @@ PATCH  /api/v1/milestones/:milestoneId/tasks/reorder
 
 ---
 
-### Module 6 — XP & Gamification (Phase 1) — M
+### Module 7 — XP & Gamification (Phase 1) — M
 
 **What:** XP ledger reads, streak computation, achievement checking.
 
@@ -363,7 +437,7 @@ journey_complete     Complete an entire journey
 
 ---
 
-### Module 7 — Notes (Phase 1) — S
+### Module 8 — Notes (Phase 1) — S
 
 **Endpoints:**
 ```
@@ -381,7 +455,7 @@ DELETE /api/v1/notes/:id
 
 ---
 
-### Module 8 — Evidence (Phase 2) — M
+### Module 9 — Evidence (Phase 2) — M
 
 **What:** Manual evidence entries on tasks and journeys.
 
@@ -401,7 +475,7 @@ DELETE /api/v1/evidence/:id
 
 ---
 
-### Module 9 — Public Profile (Phase 2) — S
+### Module 10 — Public Profile (Phase 2) — S
 
 **Endpoints:**
 ```
@@ -418,27 +492,26 @@ PATCH /api/v1/me/profile
 
 ---
 
-### Module 10 — CSV Import (Phase 2) — M
+### Module 11 — CSV Roadmap Adapter (Phase 1) — M
 
 **Endpoint:**
 ```
-POST /api/v1/import/csv
+POST /api/v1/roadmaps/import   (with source_type = 'csv' or multipart file upload)
 ```
 
-**What it imports:** A CSV of tasks with columns: `title`, `milestone`, `priority`, `due_date`, `tags`. Milestone is created if it doesn't exist.
+**What it imports:** Ingests CSV roadmaps into a `RoadmapSnapshot` and `RoadmapNode` entities via `CsvRoadmapAdapter`. Integrates directly with the Reconciliation Engine, confidence scoring, review UI, and progressive task materialization pipeline.
 
 **Implementation notes:**
-- Use `papaparse` (Node.js) for CSV parsing
-- Validate each row before any writes — return a preview of what will be imported
-- Two-step UX: upload → preview (show what will be created) → confirm → execute
-- Run all inserts in a single transaction. If any row fails validation, reject the whole import.
-- Max 500 rows per import in MVP.
+- Use `papaparse` (Node.js) for CSV file parsing within `CsvRoadmapAdapter`
+- Extracted nodes pass through standard analysis and reconciliation against existing user history
+- User review UI presents ambiguous matches before starting journey
+- Max 500 rows per CSV import file.
 
 **Complexity:** M
 
 ---
 
-### Module 11 — Outbox Worker (Phase 1) — M
+### Module 12 — Outbox Worker (Phase 1) — M
 
 **What:** Background process that polls `events.outbox`, processes unpublished events, and dispatches to in-process consumers.
 
@@ -450,6 +523,28 @@ POST /api/v1/import/csv
 - Wrap each consumer in try/catch — a consumer failure must not un-publish the event. Log failures; dead-letter handling is Phase 2.
 
 **Complexity:** M
+
+---
+
+### Module 13 — Learning Intelligence & Adaptive Flow (Phase 1) — L
+
+**What:** Implements the AI Gateway, tracks Learner Knowledge State, records Independence Signals on task completion, dynamically generates Task Types, and provides lightweight selective mastery checks.
+
+**Module Structure:**
+```
+learning-intelligence/
+├── ai-gateway.service.ts         (Abstracts AI provider interactions)
+├── mastery-assessment.service.ts (Generates and evaluates selective MCQ/debug checks)
+├── task-adaptation.service.ts    (Recalculates dynamic tasks like REINFORCEMENT, REVIEW)
+└── learner-state.service.ts      (Tracks UNKNOWN -> MASTERED progression)
+```
+
+**Implementation notes:**
+- Must operate deterministically first. The AI Gateway is called selectively.
+- Graceful degradation: if AI is unavailable or rate-limited, system falls back to basic deterministic tracking (tasks stay in NEEDS_REVIEW).
+- Uses "Generate Once, Reuse Many" for caching assessment items.
+
+**Complexity:** L
 
 ---
 
@@ -831,17 +926,11 @@ Reason: Requires S3/R2 setup, presigned URLs, and file validation. Not worth the
 **Real-time WebSocket notifications**
 Reason: Toast notifications via polling (or even just page refresh) are sufficient for MVP. WebSockets add significant complexity (connection management, reconnection, auth over WS). Estimated 3–4 days.
 
-**Reflections**
-Reason: Notes covers the journaling use case adequately for MVP. Reflections add a mood field and a prompt system — meaningful but not core to the learning loop.
-
 **Analytics dashboard**
 Reason: No users, no analytics. Build this when there's data worth analysing.
 
 **Excel / Markdown import**
 Reason: CSV is sufficient for data portability in MVP. Excel and Markdown import are one more surface to maintain.
-
-**Projects screen**
-Reason: Projects are a portfolio feature. Build after the learning loop (journeys + tasks) has proven value. The `journey.projects` table can be created but the API and frontend are deferred.
 
 ### Postpone to Phase 3 (Month 5+)
 
@@ -1031,10 +1120,10 @@ Day 30        Dashboard polish + empty states
 | 30 | Frontend: Public profile screen (server component) | /p/[username] live |
 | 31 | Frontend: Activity graph heatmap component | Heatmap visual |
 | 31 | Frontend: Settings screen (account + profile + GitHub) | Settings live |
-| 32 | CSV import API (parse + preview + execute) | POST /import/csv |
-| 33 | Frontend: CSV import three-step UI | Import screen live |
+| 32 | CSV roadmap import via CsvRoadmapAdapter | POST /roadmaps/import |
+| 33 | Frontend: Roadmap import UI (URL + CSV upload) | Import screen live |
 
-**Week 9 checkpoint:** The public profile exists. Users can share a link. Data can be imported from CSV.
+**Week 9 checkpoint:** The public profile exists. Users can share a link. Roadmaps can be imported via URL or CSV.
 
 ---
 
@@ -1074,7 +1163,7 @@ Month 3:
   · Certificate evidence (manual upload)
 
 Month 4:
-  · Projects screen
+  · Enhanced project portfolio analytics
   · File upload evidence (S3/R2)
   · Recruiter dashboard
   · Expanded achievement set (25+)
@@ -1126,4 +1215,4 @@ Month 6:
 
 ---
 
-*End of DevOS Technical Build Plan v1.0*
+*End of DevOS Technical Build Plan v1.1*

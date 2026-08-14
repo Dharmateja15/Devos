@@ -1,4 +1,4 @@
-# DevOS — Source of Truth (SoT) v1.0
+# DevOS — Source of Truth (SoT) v1.1
 
 ## Purpose
 
@@ -16,6 +16,13 @@ Priority Order:
 6. AI-generated implementation suggestions
 
 If any conflict exists, this document wins.
+
+---
+
+# Version History
+
+* **v1.0 (June 2026):** Initial baseline specification.
+* **v1.1 (August 2026):** Architecture reconciliation for **Roadmap Intelligence**. Evolved import model from static CSV task generation to external roadmap reconciliation, current-position determination, progressive task materialization, and continuous learning recalculation.
 
 ---
 
@@ -91,15 +98,39 @@ Examples:
 
 The platform must never assume only one journey exists.
 
+## Roadmap Intelligence Concept
+
+DevOS evolves from:
+"Import roadmap → generate tasks"
+into:
+"Understand an external roadmap → reconcile it with the user's existing knowledge and work → determine where the user actually is → continue from that point → continuously update the next learning step."
+
+DevOS should NEVER force a user to restart an imported roadmap from Day 1 when they have already completed or demonstrated part of it.
+
+Primary roadmap source: **roadmap.sh** (structured external roadmap source via source-adapter architecture).
+Supported fallback sources: CSV, Markdown, generic documents (PDF/DOCX treated as fallback document ingestion, NOT primary roadmap experience).
+
+### Dynamic Learning Loop
+The system must NOT behave like:
+Roadmap → Task 1 → Task 2 → Task 3 → Task 4
+
+Instead, the loop continuously adapts:
+Roadmap → learner state → current position → appropriate next task → evidence → mastery signal → learner state update → current position recalculation → next task recalculation.
+
+A completed task does not automatically advance the learner to the next concept. The next action may instead be: `LEARN`, `BUILD`, `PRACTICE`, `REVIEW`, `RECALL`, `MASTERY_CHECK`, `REINFORCEMENT`, or `PROJECT`.
+Scheduled review/reinforcement tasks verify retention for `MASTERED` concepts over time.
+Human Agency: Users can skip/postpone mastery checks or request them if they feel confident.
+
 ---
 
 # Core Hierarchy
 
 User
 → Journey
-→ Milestone
-→ Task
-→ Evidence
+→ RoadmapSnapshot
+→ RoadmapNode
+→ RoadmapMapping
+→ DevOS entities (Milestone / Task / Project / Skill / Evidence)
 → XP
 → Achievement
 
@@ -111,6 +142,26 @@ Supporting systems:
 * Daily Logs
 * Public Profiles
 * GitHub Connections
+* Reconciliation Engine
+
+### Critical Domain Distinction
+
+A **Roadmap Node** is NOT a DevOS **Task**.
+* A **Roadmap Node** represents: *"What an external roadmap recommends."*
+* A **DevOS Task** represents: *"What this specific user needs to do."*
+* A **Roadmap Mapping** connects the external roadmap node to the user's DevOS state.
+
+### Completion ≠ Mastery
+A completed task does NOT automatically mean that the learner understands the underlying concept. DevOS distinguishes between:
+1. Work completion (task marked done)
+2. Evidence of work
+3. Concept understanding/mastery
+4. Ability to perform independently
+
+The following are NOT equivalent:
+"Task completed" ≠ "Evidence exists" ≠ "I understand the concept" ≠ "I can perform independently".
+
+AI-assisted and vibe-coded work is legitimate work. DevOS does not punish AI usage, but AI assistance must not automatically imply mastery. Evidence alone does not automatically prove mastery without an independence signal.
 
 ---
 
@@ -129,9 +180,27 @@ Examples:
 * AI Engineering
 * Blockchain
 
+## RoadmapSnapshot
+
+A immutable snapshot representation of an external roadmap version at a specific point in time.
+
+Contains: id, user, source type, source URL, source name, source version/hash, imported timestamp, updated timestamp, metadata.
+
+## RoadmapNode
+
+An individual structural element within an external roadmap snapshot.
+
+Contains: id, snapshot id, external node id, parent node id, title, description, node type (topic, milestone, skill, project, resource, decision, optional topic), sort order, dependencies, resource URLs, metadata.
+
+## RoadmapMapping
+
+The bridge entity connecting an external RoadmapNode with the user's DevOS state.
+
+Contains: id, roadmap node id, user id, journey id, task id (nullable), project id (nullable), skill id (nullable), mapping status (`COMPLETED`, `KNOWN_UNVERIFIED`, `IN_PROGRESS`, `PARTIAL_MATCH`, `NEW`, `AMBIGUOUS`, `SKIPPED`, `USER_CONFIRMED`), confidence score, matching reason, user confirmation flag, timestamps.
+
 ## Milestone
 
-A significant learning checkpoint.
+A significant learning checkpoint within a Journey.
 
 Examples:
 
@@ -140,7 +209,7 @@ Examples:
 
 ## Task
 
-Atomic learning unit.
+Atomic learning unit (what the user actually needs to do).
 
 Examples:
 
@@ -199,6 +268,23 @@ Examples:
 
 Tasks may map to multiple skills.
 
+## Learner Knowledge State
+DevOS tracks mastery using distinct conceptual states:
+* `UNKNOWN`: No data.
+* `SELF_REPORTED`: User claims they know it.
+* `ASSESSED`: Lightweight mastery check passed.
+* `MASTERED`: Consistent verified independence.
+* `NEEDS_REVIEW`: Scheduled for reinforcement.
+
+## Independence Signal
+To distinguish AI-assisted work from independent capability, DevOS tracks the independence signal:
+* `AI_ASSISTED`: Heavy reliance on AI.
+* `GUIDED`: Partial assistance.
+* `INDEPENDENT`: Demonstrable standalone capability.
+
+## Mastery Assessment
+A lightweight diagnostic tool (3–5 conceptual items: MCQ, debugging, explanation) triggered selectively based on task completion, AI-assistance level, or user report. Users have agency to skip or request checks.
+
 ## XP Ledger
 
 Append-only experience history.
@@ -225,10 +311,11 @@ Examples:
 The MVP includes:
 
 * Authentication
-* Dashboard
+* Dashboard & Today's Focus
 * Journey CRUD
 * Milestone CRUD
 * Task CRUD
+* Roadmap Intelligence (roadmap.sh primary structured adapter, CSV/Markdown adapters, document fallback, RoadmapSnapshot/Node/Mapping persistence, Reconciliation Engine, progressive task materialization, Day 2 current position continuation)
 * Daily Logs
 * Notes
 * Projects
@@ -237,7 +324,6 @@ The MVP includes:
 * Achievement Engine
 * Basic GitHub Connection
 * Public Profiles
-* CSV Import
 
 ---
 
@@ -405,6 +491,36 @@ XP must be auditable.
 
 Evidence must be verifiable.
 
+### Deterministic-First Foundation
+Core systems (XP, Streaks, Roadmap Graph, Prerequisite logic, Task Status, Review scheduling) are deterministic and rule-based. AI is NOT required for core progress tracking.
+
+### AI Minimization & Graceful Degradation
+* **AI Minimization**: AI is used selectively (semantic reconciliation, ambiguous matching, personalized mastery question generation, task adaptation). 
+* **Generate Once, Reuse Many**: Concept explanations and mastery question banks are cached and reused to minimize frequent LLM calls.
+* **Graceful Degradation**: Core DevOS functionality (authentication, journeys, tasks, XP, profiles, evidence, dashboards) must remain fully functional when AI is unavailable, rate-limited, or latent.
+
+---
+
+# AI Safety & Data Integrity Rules
+
+The reconciliation system may use AI/semantic matching to suggest relationships between external roadmap nodes and user history. However:
+
+* AI must NOT directly fabricate completed tasks, skills, evidence, GitHub activity, or project completions.
+* AI must never fabricate mastery/evidence.
+* AI confidence scoring is a recommendation mechanism ONLY. Evidence and explicit user confirmation are strictly more authoritative than semantic similarity.
+* Critical Invariant: **Importing a roadmap must never destroy, duplicate, or falsely complete existing user progress.**
+
+### Unresolved Design Decisions (Explicitly Deferred)
+
+1. **Confidence Calculation Formula:** Score thresholds (95–100%, 80–94%, 50–79%, <50%) are finalized, but the underlying mathematical, vector embedding, or LLM score calculation function remains an explicitly unresolved design decision.
+2. **Missing Prerequisite Handling:** The automated system behavior when a user demonstrates mastery of a later node but lacks evidence for an upstream prerequisite remains an explicitly unresolved design decision.
+
+---
+
+3. **AI Provider/Model Selection:** Provider choice is abstracted away by the AI Gateway and remains unresolved.
+4. **Cache Technology:** Implementation-specific caching technology is deferred.
+5. **Mastery Representation:** Specific database schema representation for Learner Mastery is conceptually defined but implementation is deferred.
+
 ---
 
 # Non-Negotiable Rules
@@ -412,6 +528,10 @@ Evidence must be verifiable.
 Do not remove journeys.
 
 Do not reduce DevOS into a task manager.
+
+Do not collapse RoadmapNode and Task into the same entity.
+
+Do not force users to restart imported roadmaps from Day 1 when partial progress exists.
 
 Do not remove gamification.
 

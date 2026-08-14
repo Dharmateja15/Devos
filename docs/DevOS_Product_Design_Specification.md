@@ -1,8 +1,8 @@
 # DevOS — Product Design Specification
-**Version:** 1.0  
+**Version:** 1.1  
 **Author:** Product Design  
-**Date:** June 2026  
-**Status:** Draft
+**Date:** August 2026  
+**Status:** Approved (Roadmap Intelligence Update)
 
 ---
 
@@ -162,7 +162,7 @@ Horizontal scrollable row of cards (3 visible on desktop, 1.5 on mobile). Each c
 - Clicking a card navigates to that Journey screen
 
 **Today's Focus**
-A curated list of 3–5 tasks across all journeys, surfaced by due date and priority. Not algorithmic in MVP — user manually pins tasks or tasks with today's due date appear. Each row: journey color dot · task title · journey name · checkbox to mark done. Completing a task here triggers an XP flash animation.
+A curated list of 3–5 tasks across all journeys, surfaced dynamically based on the learner's current position and mastery state. The next action may be `LEARN`, `BUILD`, `PRACTICE`, `REVIEW`, `RECALL`, `MASTERY_CHECK`, `REINFORCEMENT`, or `PROJECT`. Each row: journey color dot · task type icon · task title · journey name. Completing a task triggers recalculation of the next recommended work.
 
 **Recent Activity Feed**
 Chronological list of events from the past 7 days: tasks completed, GitHub commits linked, evidence added, achievements unlocked. Each entry has an icon indicating its type, a brief description, and a relative timestamp. Clicking an entry navigates to the relevant entity.
@@ -396,6 +396,10 @@ Primary green button. On click: status changes, XP award modal fires (see XP Pro
 - Add note → inline, no save button needed (auto-saves on blur)
 - Mark as done → XP award animation, Undo toast for 5 seconds
 
+### Mark as Done & Independence Signal
+
+When a learner clicks "Mark as done", they are prompted to indicate their independence (AI-assisted, Guided, Independent). This ensures AI-assisted work is tracked without punishment. If mastery is unknown, DevOS may suggest a quick mastery check or allow the user to proceed.
+
 ### Empty State
 
 No evidence linked:
@@ -406,6 +410,26 @@ No evidence yet.
 Link a commit, upload a certificate,
 or add a manual note to prove your work.
 ```
+
+---
+
+## 4. Adaptive Learning & Mastery Flows
+
+### Philosophy
+DevOS is not a full AI tutor. Mastery checks are lightweight, selective (3-5 diagnostic items), and heavily respect human agency.
+
+### Key User Flows
+
+1. **Task completed but mastery unknown:** Upon marking a task done, if the concept is highly critical, DevOS may present a non-blocking toast: "Want to verify you've got this?"
+2. **AI-assisted/vibe-coded task:** If the user selects `AI_ASSISTED` during completion, the system acknowledges the completion but keeps the knowledge state as `NEEDS_REVIEW` and schedules a future Reinforcement task.
+3. **"I already know this":** Users can skip tasks or mark them as `SELF_REPORTED` knowledge. 
+4. **"I'm confident enough to move forward":** Users can postpone mastery checks entirely and just proceed. Human agency wins.
+5. **"Give me a quick mastery check":** A user can manually request a check (MCQ, debugging snippet, or brief explanation) to upgrade their state to `ASSESSED` or `MASTERED`.
+6. **"I need revision":** If a user feels shaky, they can explicitly flag a concept for review.
+7. **Mastery check result:** Feedback is immediate. Passing updates the state to `MASTERED`. Failing does not punish; it queues a `REVIEW` or `PRACTICE` task.
+8. **Review later:** Any mastery check or task can be dismissed with a "Remind me later" action.
+9. **Reinforcement task:** Scheduled dynamically in Today's Focus to verify retention of `MASTERED` concepts over time.
+10. **Dynamic Today's Focus:** The dashboard adapts based on these states. A completed task does not blindly load the next roadmap node; it may load a practice exercise or a review based on the latest knowledge state.
 
 ---
 
@@ -1067,6 +1091,152 @@ Keep going — graphs get interesting at 10+.
 
 ---
 
+## 11. Roadmap Intelligence UX
+
+### Core Product Concept
+
+DevOS never forces a user to restart an imported roadmap from Day 1 when they have already completed or demonstrated part of it. The Roadmap Intelligence UX guides the user through understanding an external roadmap, reconciling it with their existing knowledge and work, determining their actual starting position, and progressively materializing actionable tasks.
+
+### Conceptual User Flow
+
+```
+┌──────────┐     ┌──────────┐     ┌───────────┐     ┌──────────┐     ┌─────────────────────────────┐
+│  IMPORT  │ ──▶ │ ANALYZE  │ ──▶ │ RECONCILE │ ──▶ │  REVIEW  │ ──▶ │ START FROM CURRENT POSITION │
+└──────────┘     └──────────┘     └───────────┘     └──────────┘     └─────────────────────────────┘
+```
+
+---
+
+### 1. Roadmap Source UI
+
+The primary import experience centers around pasting a roadmap URL (principally `roadmap.sh`), with fallback document uploads available.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Import Roadmap                                                    │
+│  ──────────────────────────────────────────────────────────────    │
+│  DevOS understands external roadmaps and reconciles them with      │
+│  your existing progress so you can pick up right where you are.    │
+│                                                                    │
+│  ROADMAP URL (Primary)                                             │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ https://roadmap.sh/ai-engineer                               │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│  [ Analyze Roadmap ]                                               │
+│                                                                    │
+│  ─── OR UPLOAD DOCUMENT (Fallback) ──────────────────────────────  │
+│  Drag & drop CSV, Markdown, PDF, or DOCX files here                │
+│  [ Select file... ]                                                │
+│                                                                    │
+│  Note: PDF/DOCX files are processed as fallback text extractions.   │
+│  URL & source attribution will be preserved in your Journey.        │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2. Analysis & Reconciliation UI
+
+Once analyzed, the system presents a high-level summary of the external nodes discovered and how they reconcile against existing DevOS tasks, projects, skills, and evidence:
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Roadmap Analysis: AI Engineer Roadmap                             │
+│  Source: https://roadmap.sh/ai-engineer  ·  147 Nodes Found       │
+│  ──────────────────────────────────────────────────────────────    │
+│                                                                    │
+│  RECONCILIATION SUMMARY                                            │
+│                                                                    │
+│  ✓  18  Already Completed       (Verified by past tasks & evidence) │
+│  ◉  24  Strongly Matched        (95%+ confidence auto-mapped)       │
+│  ?  11  Needs Confirmation     (50–79% confidence ambiguous)       │
+│  +  94  New Learning Nodes      (Queued for future learning)        │
+│                                                                    │
+│  [ Review Mappings (11) → ]     [ Skip Review & Continue ]         │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 3. User Review UI (Ambiguous Match Resolution)
+
+DevOS never automatically resolves ambiguous matches. The user retains full control to override AI confidence scoring and verify their true state.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Review Ambiguous Mappings  (1 of 11)                              │
+│  ──────────────────────────────────────────────────────────────    │
+│                                                                    │
+│  ROADMAP NODE                                                      │
+│  Python Decorators & Generators                                    │
+│  Description: Understanding wraps, closures, and generator state. │
+│                                                                    │
+│  POSSIBLE MATCH IN YOUR DEVOS WORK                                 │
+│  Task: "Python Advanced Concepts & Metaprogramming"                │
+│  Journey: AI Engineering  ·  Completed Jun 10                      │
+│                                                                    │
+│  Confidence: 63% (Ambiguous Match)                                 │
+│  Matching Reason: Semantic overlap in Python advanced functions   │
+│                                                                    │
+│  ACTIONS                                                           │
+│  [ ✓ Mark Completed ]   [ ◉ Keep as Task ]   [ ↷ Skip Node ]       │
+│                                                                    │
+│  [ ← Previous ]                                    [ Next → ]      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4. "YOUR JOURNEY STARTS HERE" UI (Current Position / Day 2 Experience)
+
+After completing review, DevOS determines the user's earliest meaningful unfinished node and sets their current starting position:
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  YOUR JOURNEY STARTS HERE                                          │
+│  ──────────────────────────────────────────────────────────────    │
+│                                                                    │
+│  ✓  Python Fundamentals              Completed                     │
+│  ✓  Mathematics & Statistics         Completed                     │
+│  ✓  Machine Learning Basics          Completed                     │
+│                                                                    │
+│  ─── CURRENT STARTING POINT ────────────────────────────────────── │
+│  ➔  Deep Learning & Neural Networks  [ CURRENT FOCUS ]             │
+│        Next task: Implement Backpropagation from scratch           │
+│                                                                    │
+│  ○  Transformer Architectures        Next                          │
+│  ○  LLM Fine-tuning                  Queued                        │
+│                                                                    │
+│  [ Materialize Tasks & Open Journey → ]                            │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 5. Progressive Task Materialization & Daily Planner Integration
+
+Rather than converting a 100+ node roadmap into 100+ active DevOS tasks (which causes user overwhelm), DevOS maintains the complete roadmap graph in the background while materializing only the **current active milestone's relevant nodes** into actionable DevOS tasks.
+
+```
+Full Roadmap Graph (147 Nodes)
+    ↓
+Current Milestone (Deep Learning)
+    ↓
+Relevant Nodes (3 Nodes)
+    ↓
+Actionable DevOS Tasks
+    ↓
+Today's Focus (Dashboard)
+```
+
+#### Daily Continuation Loop:
+1. **Learn & Execute:** Actionable tasks appear in **Today's Focus**.
+2. **Task Completion:** User marks task done and attaches evidence.
+3. **Position Update:** System updates `RoadmapMapping`, `RoadmapSnapshot` position, and Journey completion status.
+4. **Recalculation:** System automatically recalculates the next recommended learning step, materializing the next node in the sequence into Today's Focus.
+
+---
+
 ## Interaction Patterns — Global
 
 ### Navigation Structure
@@ -1150,4 +1320,6 @@ All animations: respect `prefers-reduced-motion` — reduce to instant state cha
 
 ---
 
-*End of DevOS Product Design Specification v1.0*
+---
+
+*End of DevOS Product Design Specification v1.1*

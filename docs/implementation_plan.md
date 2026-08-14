@@ -1,4 +1,4 @@
-# DevOS — Master Implementation Plan (Version 1.2)
+# DevOS — Master Implementation Plan (Version 1.3)
 
 This document integrates the **Master Source of Truth (MST)**, **System Architecture Document**, **Product Design Specification**, and **Technical Build Plan**. Conflicts are resolved using the priority rules: **Master Source of Truth (1) > Architecture (2) > Product Spec (3) > Technical Build Plan (4) > Antigravity Plan (5)**.
 
@@ -7,20 +7,29 @@ This document integrates the **Master Source of Truth (MST)**, **System Architec
 ## Key Reconciled Requirements
 
 1.  **Scope Boundaries (MST & Build Plan):**
-    *   **Included in MVP:** Authentication (Email/Password & GitHub OAuth), Dashboard, Journey Creation, Milestones, Tasks, Daily Logs (reflecting notes, challenges, wins, and mood), Notes, XP System, Streak System, Achievement System, Basic GitHub Connection (username connection, repository listing, and contribution count via public APIs), Public Profile, and CSV Import.
+    *   **Included in MVP:** Authentication (Email/Password & GitHub OAuth), Dashboard & Today's Focus, Journey Creation, Milestones, Tasks, **Roadmap Intelligence** (roadmap.sh primary structured source adapter, CSV/Markdown adapters, PDF/DOCX document fallback, RoadmapSnapshot/Node/Mapping persistence, Reconciliation Engine, progressive task materialization, Day 2 current position calculation), **Learning Intelligence** (Learner State tracking, Independence Signals, AI Gateway abstraction, Dynamic Task Types, selective lightweight mastery checks, Graceful Degradation, deterministic execution), Daily Logs (reflecting notes, challenges, wins, and mood), Notes, XP System, Streak System, Achievement System, Basic GitHub Connection (username connection, repository listing, and contribution count via public APIs), and Public Profile.
     *   **Excluded from MVP:** AI Mentor, Skill Graph, Resume Generator, Recruiter Dashboard, Full GitHub Sync (automated cron repos scan), Webhooks, and File Uploads.
     *   **Projects Inclusion:** In alignment with the MST's gamification rule ("Project Completion = +100 XP") and the Product Design Specification's "Project Screen", the database schema will include the `Project` entity, and basic CRUD + XP mapping will be supported in the MVP.
 2.  **Database & Schema Design (Architecture):**
-    *   **Schema Namespaces:** Prisma will use PostgreSQL schema isolation using the `multiSchema` preview feature across five schemas: `identity`, `journey`, `evidence`, `gamification`, `social`, and `events`.
+    *   **Schema Namespaces:** Prisma will use PostgreSQL schema isolation using the `multiSchema` preview feature across seven schemas: `identity`, `roadmap`, `journey`, `evidence`, `gamification`, `social`, and `events`.
     *   **Primary Keys & Timestamps:** All primary keys use `UUID` (ordered UUIDv7 generated in the app/DB). All timestamps are `TIMESTAMPTZ`.
     *   **Soft Deletes:** Enforced via `deleted_at TIMESTAMPTZ NULL` on user-data tables.
-    *   **Outbox Pattern:** Implemented via `events.outbox` inside the database to handle asynchronous event processing (for XP computations, streaks, and achievements).
-3.  **Authentication (Architecture & Build Plan):**
+    *   **Outbox Pattern:** Implemented via `events.outbox` inside the database to handle asynchronous event processing (for XP computations, streaks, achievements, and roadmap updates).
+3.  **Roadmap Intelligence Domain Invariants:**
+    *   **Domain Distinction:** A `RoadmapNode` represents what an external roadmap recommends; a DevOS `Task` represents what a specific user needs to do. `RoadmapMapping` bridges the two.
+    *   **Data Integrity:** Semantic similarity is a recommendation mechanism ONLY. AI must never directly fabricate completed tasks, skills, evidence, or GitHub activity. Importing a roadmap must never destroy, duplicate, or falsely complete existing user progress.
+    *   **Explicit Unresolved Design Decisions:**
+        1. *Confidence Calculation Formula:* Score thresholds (95–100%, 80–94%, 50–79%, <50%) are defined, but the underlying mathematical, vector embedding, or LLM score calculation function remains an explicitly unresolved design decision.
+        2. *Missing Prerequisite Handling:* The automated system behavior when a user demonstrates mastery of a later node but lacks evidence for an upstream prerequisite remains an explicitly unresolved design decision.
+        3. *Mastery Representation:* Specific database schema representation for Learner Mastery (states, independence signals) is conceptually defined but implementation is deferred.
+        4. *AI Provider/Model Selection:* Provider choice is abstracted away by the Gateway and deferred.
+        5. *Cache Technology:* Implementation-specific caching technology for AI generated content is deferred.
+4.  **Authentication (Architecture & Build Plan):**
     *   **Hashing:** Argon2id (`argon2` package) will be used instead of bcrypt for password hashing.
     *   **Tokens:** A dual-token model: short-lived JWT access tokens (15 minutes) passed in the headers, and opaque refresh tokens (30 days) stored in `HttpOnly` Secure SameSite=Strict cookies. Refresh tokens are hashed and stored in `identity.sessions` for token rotation.
-4.  **GitHub Connection (MST vs Build Plan):**
+5.  **GitHub Connection (MST vs Build Plan):**
     *   Although the Build Plan recommended postponing GitHub features, the **MST overrides this**. The MVP will include: GitHub OAuth login, storing connected GitHub username, fetching public repositories, and listing public contribution count. Additionally, linking evidence of type `GITHUB_REPO` or `GITHUB_COMMIT` will perform basic validation against the public GitHub API, marking them `verified` and granting a +5 XP bonus.
-5.  **Design System & UI Tokens (Product Spec):**
+6.  **Design System & UI Tokens (Product Spec):**
     *   Vanilla CSS layout using CSS custom variables matching the exact color palette (base `#0D0F12`, surface `#161B22`, purple accent `#A371F7` for XP, green accent `#3FB950` for completions).
     *   Fonts: **JetBrains Mono** for displaying numeric data and display headings, and **Inter** for default body text.
     *   Vanilla micro-animations: task completion transitions, inline XP floats (`+10 XP` animated overlay), and full-screen achievement unlock overlays.
@@ -33,7 +42,7 @@ This document integrates the **Master Source of Truth (MST)**, **System Architec
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["identity", "journey", "evidence", "gamification", "social", "events"]
+  schemas  = ["identity", "roadmap", "journey", "evidence", "gamification", "social", "events"]
 }
 
 generator client {
@@ -120,6 +129,37 @@ enum DailyLogType {
   @@schema("journey")
 }
 
+enum RoadmapSourceType {
+  ROADMAP_SH
+  CSV
+  MARKDOWN
+  DOCUMENT_FALLBACK
+  @@schema("roadmap")
+}
+
+enum RoadmapNodeType {
+  TOPIC
+  MILESTONE
+  SKILL
+  PROJECT
+  RESOURCE
+  DECISION
+  OPTIONAL_TOPIC
+  @@schema("roadmap")
+}
+
+enum MappingStatus {
+  COMPLETED
+  KNOWN_UNVERIFIED
+  IN_PROGRESS
+  PARTIAL_MATCH
+  NEW
+  AMBIGUOUS
+  SKIPPED
+  USER_CONFIRMED
+  @@schema("roadmap")
+}
+
 model User {
   id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String      @unique
@@ -133,15 +173,17 @@ model User {
   deletedAt    DateTime?   @map("deleted_at") @db.Timestamptz
 
   // Authentication & Relations
-  oauthAccounts  OAuthAccount[]
-  sessions       Session[]
-  journeys       Journey[]
-  evidenceItems  EvidenceItem[]
-  xpLedger       XpLedger[]
-  streaks        Streak[]
-  achievements   UserAchievement[]
-  publicProfile  PublicProfile?
-  streakHistory  StreakHistory[]
+  oauthAccounts    OAuthAccount[]
+  sessions         Session[]
+  journeys         Journey[]
+  roadmapSnapshots RoadmapSnapshot[]
+  roadmapMappings  RoadmapMapping[]
+  evidenceItems    EvidenceItem[]
+  xpLedger         XpLedger[]
+  streaks          Streak[]
+  achievements     UserAchievement[]
+  publicProfile    PublicProfile?
+  streakHistory    StreakHistory[]
 
   @@map("users")
   @@schema("identity")
@@ -181,6 +223,72 @@ model Session {
   @@schema("identity")
 }
 
+model RoadmapSnapshot {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String            @map("user_id") @db.Uuid
+  sourceType    RoadmapSourceType @map("source_type")
+  sourceUrl     String?           @map("source_url")
+  sourceName    String            @map("source_name")
+  sourceVersion String?           @map("source_version")
+  importedAt    DateTime          @default(now()) @map("imported_at") @db.Timestamptz
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  metadata      Json              @default("{}")
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes         RoadmapNode[]
+
+  @@map("roadmap_snapshots")
+  @@schema("roadmap")
+}
+
+model RoadmapNode {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshotId     String          @map("snapshot_id") @db.Uuid
+  externalNodeId String          @map("external_node_id")
+  parentNodeId   String?         @map("parent_node_id") @db.Uuid
+  title          String
+  description    String?
+  nodeType       RoadmapNodeType @default(TOPIC) @map("node_type")
+  sortOrder      Int             @default(0) @map("sort_order")
+  dependencies   String[]
+  resourceUrls   String[]        @map("resource_urls")
+  metadata       Json            @default("{}")
+
+  snapshot       RoadmapSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  parentNode     RoadmapNode?    @relation("NodeHierarchy", fields: [parentNodeId], references: [id], onDelete: SetNull)
+  childNodes     RoadmapNode[]   @relation("NodeHierarchy")
+  mappings       RoadmapMapping[]
+
+  @@map("roadmap_nodes")
+  @@schema("roadmap")
+}
+
+model RoadmapMapping {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roadmapNodeId    String        @map("roadmap_node_id") @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  journeyId        String?       @map("journey_id") @db.Uuid
+  taskId           String?       @map("task_id") @db.Uuid
+  projectId        String?       @map("project_id") @db.Uuid
+  skillId          String?       @map("skill_id") @db.Uuid
+  mappingStatus    MappingStatus @default(NEW) @map("mapping_status")
+  confidenceScore  Float         @default(0.0) @map("confidence_score")
+  matchingReason   String?       @map("matching_reason")
+  userConfirmation Boolean       @default(false) @map("user_confirmation")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  roadmapNode      RoadmapNode   @relation(fields: [roadmapNodeId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey          Journey?      @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  task             Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  project          Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  skill            Skill?        @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  @@map("roadmap_mappings")
+  @@schema("roadmap")
+}
+
 model Journey {
   id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId      String        @map("user_id") @db.Uuid
@@ -199,16 +307,16 @@ model Journey {
   updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz
 
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  milestones  Milestone[]
-  tasks       Task[]
-  projects    Project[]
-  notes       Note[]
-  reflections Reflection[]
-  evidence    EvidenceItem[]
-  xpLedger    XpLedger[]
-  streaks     Streak[]
-  awards      UserAchievement[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones      Milestone[]
+  tasks           Task[]
+  projects        Project[]
+  notes           Note[]
+  evidence        EvidenceItem[]
+  xpLedger        XpLedger[]
+  streaks         Streak[]
+  awards          UserAchievement[]
+  roadmapMappings RoadmapMapping[]
 
   @@unique([userId, slug])
   @@map("journeys")
@@ -232,7 +340,6 @@ model Milestone {
   journey     Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
   tasks       Task[]
   notes       Note[]
-  reflections Reflection[]
 
   @@map("milestones")
   @@schema("journey")
@@ -255,23 +362,25 @@ model Task {
   updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt   DateTime?    @map("deleted_at") @db.Timestamptz
 
-  milestone   Milestone    @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
-  journey     Journey      @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  notes       Note[]
-  evidence    EvidenceItem[]
-  skills      TaskSkill[]
+  milestone       Milestone        @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  journey         Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  notes           Note[]
+  evidence        EvidenceItem[]
+  skills          TaskSkill[]
+  roadmapMappings RoadmapMapping[]
 
   @@map("tasks")
   @@schema("journey")
 }
 
 model Skill {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String      @unique
-  description String?
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  tasks       TaskSkill[]
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tasks           TaskSkill[]
+  roadmapMappings RoadmapMapping[]
 
   @@map("skills")
   @@schema("journey")
@@ -292,25 +401,26 @@ model TaskSkill {
 }
 
 model Project {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  journeyId    String        @map("journey_id") @db.Uuid
-  title        String
-  description  String?
-  repoUrl      String?       @map("repo_url")
-  liveUrl      String?       @map("live_url")
-  thumbnailUrl String?       @map("thumbnail_url")
-  status       ProjectStatus @default(IN_PROGRESS)
-  techStack    String[]      @map("tech_stack")
-  startedAt    DateTime?     @map("started_at") @db.Date
-  completedAt  DateTime?     @map("completed_at") @db.Timestamptz
-  xpReward     Int           @default(100) @map("xp_reward")
-  metadata     Json          @default("{}")
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyId       String           @map("journey_id") @db.Uuid
+  title           String
+  description     String?
+  repoUrl         String?          @map("repo_url")
+  liveUrl         String?          @map("live_url")
+  thumbnailUrl    String?          @map("thumbnail_url")
+  status          ProjectStatus    @default(IN_PROGRESS)
+  techStack       String[]         @map("tech_stack")
+  startedAt       DateTime?        @map("started_at") @db.Date
+  completedAt     DateTime?        @map("completed_at") @db.Timestamptz
+  xpReward        Int              @default(100) @map("xp_reward")
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz
 
-  journey      Journey       @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  evidence     EvidenceItem[]
+  journey         Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  evidence        EvidenceItem[]
+  roadmapMappings RoadmapMapping[]
 
   @@map("projects")
   @@schema("journey")
@@ -338,22 +448,6 @@ model Note {
   @@schema("journey")
 }
 
-model Reflection {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  journeyId   String    @map("journey_id") @db.Uuid
-  milestoneId String?   @map("milestone_id") @db.Uuid
-  prompt      String?
-  content     String    @db.Text
-  mood        String?   
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  journey     Journey    @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-
-  @@map("reflections")
-  @@schema("journey")
-}
 
 model DailyLog {
   id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -537,9 +631,12 @@ model OutboxEvent {
 ## 2. Core Entities
 
 *   **User:** Root aggregate owner. Maintains username, display name, email, role, and overall level mappings.
+*   **RoadmapSnapshot:** Immutable versioned snapshot of an external roadmap at a point in time (roadmap.sh primary source, CSV/Markdown, PDF/DOCX document fallback).
+*   **RoadmapNode:** Structural recommendation element within an external roadmap (topic, milestone, skill, project, resource, decision, optional topic). *Domain distinction: A RoadmapNode is NOT a DevOS Task.*
+*   **RoadmapMapping:** Bridge entity connecting an external RoadmapNode to the user's DevOS state (Journey, Task, Project, Skill, Evidence) with confidence score and mapping status.
 *   **Journey:** Aggregation root of a learning track (e.g. AI Engineering). Supports status (`ACTIVE`, `PAUSED`, `COMPLETED`, `ARCHIVED`), visibility controls (`PRIVATE`, `PUBLIC`, `RECRUITER`), and customized meta mapping.
 *   **Milestone:** Scoped checkpoint within a Journey. Contains groups of tasks.
-*   **Task:** Atomic, actionable learning unit. Has priorities (`LOW`, `MEDIUM`, `HIGH`) and completion states. Completing it awards XP.
+*   **Task:** Atomic, actionable learning unit (*what the user actually needs to do*). Has priorities (`LOW`, `MEDIUM`, `HIGH`) and completion states. Completing it awards XP.
 *   **Skill:** Repositories of knowledge tags (e.g., Python, React).
 *   **TaskSkill:** Join table mapping skills specifically to tasks.
 *   **Project:** Finished showcase piece. Completing it awards +100 XP.
@@ -563,7 +660,7 @@ NestJS REST API following bounded modules. Uses standard validation policies and
 *   **Prefix:** `/api/v1`
 *   **Validation:** Global validation filters mapping Zod models or `class-validator` attributes.
 *   **Responses:** Encapsulated inside `{ success: boolean, data?: T, message?: string, error?: string }` layouts.
-*   **Outbox Event Worker:** Runs a background task polling `events.outbox` to process event hooks (streaks calculation, achievements matching) using in-memory handlers in MVP to bypass separate worker services.
+*   **Outbox Event Worker:** Runs a background task polling `events.outbox` to process event hooks (streaks calculation, achievements matching, roadmap updates) using in-memory handlers in MVP to bypass separate worker services.
 
 ### Core Endpoints
 
@@ -575,6 +672,16 @@ NestJS REST API following bounded modules. Uses standard validation policies and
 *   `GET /api/v1/auth/me` - Resolves details of the logged-in session.
 *   `GET /api/v1/auth/oauth/github` - Triggers GitHub OAuth integration redirect.
 *   `GET /api/v1/auth/oauth/github/callback` - Resolves OAuth code, registers user, exchanges token.
+
+#### Roadmap Intelligence Module
+*   `POST /api/v1/roadmaps/import` - Import external roadmap from URL (roadmap.sh) or file upload (CSV, MD, PDF/DOCX fallback).
+*   `POST /api/v1/roadmaps/:id/analyze` - Extract and normalize external roadmap nodes into `RoadmapSnapshot`.
+*   `POST /api/v1/roadmaps/:id/reconcile` - Run Reconciliation Engine against user's DevOS history.
+*   `GET /api/v1/roadmaps/:id/mappings` - Retrieve mapped node statuses, confidence scores, and reasons.
+*   `PATCH /api/v1/roadmaps/mappings/:mappingId` - Apply user manual confirmation or override.
+*   `POST /api/v1/roadmaps/:id/start` - Determine Day 2 current starting position and materialize initial actionable tasks.
+*   `GET /api/v1/roadmaps/:id/progress` - Fetch roadmap completion percentage and current node position.
+*   `GET /api/v1/roadmaps/:id/next` - Calculate and return next recommended learning step.
 
 #### Journey Module
 *   `POST /api/v1/journeys` - Create a learning path.
@@ -613,9 +720,6 @@ NestJS REST API following bounded modules. Uses standard validation policies and
 *   `POST /api/v1/evidence` - Attach evidence (e.g. URL, Manual description). Completing task evidence adds +5 XP.
 *   `GET /api/v1/evidence` - Lists evidence filtered by task or project parameters.
 
-#### CSV Import Module
-*   `POST /api/v1/import/csv` - Validates and imports task roadmaps dynamically. Creates milestones when new labels are caught. Enclosed in a rollback transaction.
-
 #### Public Profiles Module
 *   `GET /api/v1/profile/:username` - Public endpoint returning username, display name, pinned journeys, activity heatmaps, and achievements.
 
@@ -630,6 +734,22 @@ devos/
 │   │   ├── src/
 │   │   │   ├── modules/
 │   │   │   │   ├── auth/             # Passport, JWT, Argon2id, GitHub OAuth
+│   │   │   │   ├── roadmap/          # Roadmap Intelligence Module
+│   │   │   │   │   ├── roadmap.controller.ts
+│   │   │   │   │   ├── roadmap.service.ts
+│   │   │   │   │   ├── roadmap-reconciliation.service.ts
+│   │   │   │   │   ├── roadmap-progress.service.ts
+│   │   │   │   │   ├── roadmap.module.ts
+│   │   │   │   │   ├── adapters/
+│   │   │   │   │   │   ├── roadmap-adapter.interface.ts
+│   │   │   │   │   │   ├── roadmapsh.adapter.ts
+│   │   │   │   │   │   ├── csv.adapter.ts
+│   │   │   │   │   │   └── document.adapter.ts
+│   │   │   │   │   ├── dto/
+│   │   │   │   │   │   ├── import-roadmap.dto.ts
+│   │   │   │   │   │   ├── review-mapping.dto.ts
+│   │   │   │   │   │   └── start-roadmap.dto.ts
+│   │   │   │   │   └── roadmap.types.ts
 │   │   │   │   ├── journeys/         # Journeys, Milestones CRUD
 │   │   │   │   ├── tasks/            # Tasks CRUD, completes
 │   │   │   │   ├── projects/         # Projects CRUD, completions (+100 XP)
@@ -638,7 +758,6 @@ devos/
 │   │   │   │   ├── evidence/         # Manual & URL evidence logic
 │   │   │   │   ├── gamification/     # XP ledger, streaks date calculations, achievements evaluations
 │   │   │   │   ├── profile/          # Profiles public view endpoint
-│   │   │   │   ├── import/           # papaparse CSV importer
 │   │   │   │   └── outbox/           # Polling cron processing events
 │   │   │   ├── database/             # Shared Prisma Client integration
 │   │   │   └── main.ts
@@ -649,10 +768,10 @@ devos/
 │       │   │   ├── layout.tsx        # Injects JetBrains Mono + Inter fonts, styling base
 │       │   │   ├── global.css        # Core custom layout variables (dark mode theme, no Tailwind)
 │       │   │   ├── (auth)/           # Authentication views (login, signup)
-│       │   │   ├── (dashboard)/      # Protected workspaces (Dashboard, settings, CSV upload)
+│       │   │   ├── (dashboard)/      # Protected workspaces (Dashboard, settings, roadmap import)
 │       │   │   ├── p/[username]/     # Server-rendered SEO-friendly Public Profile view
 │       │   │   └── page.tsx          # Landing / Gateway route selector
-│       │   ├── components/           # Custom reusable blocks (Accordion, XP tracker, Streak widget)
+│       │   ├── components/           # Custom reusable blocks (Accordion, XP tracker, Roadmap review widget)
 │       │   └── lib/                  # TanStack Query configurations and API fetch client
 │       └── package.json
 ├── packages/
@@ -726,28 +845,47 @@ Every transaction commits records and logs to the transactional outbox (`events.
 
 ### Phase 0 — Scaffold & Auth (Days 1–5)
 1.  **Monorepo Setup:** Configure Turborepo workspace, typescript rules, shared configs.
-2.  **Database Migration (Phase 0):** Establish postgres docker containers, setup Prisma schemas (`identity`), create migrations.
+2.  **Database Migration (Phase 0):** Establish postgres docker containers, setup Prisma schemas (`identity`, `roadmap`), create migrations.
 3.  **Argon2id Auth Engine:** Deploy Passport handlers, signup/login controllers, dual-token rotation pipelines, and encrypted OAuth records.
 4.  **Frontend Auth:** Deploy Next.js context layers, login/signup forms, path route checkers.
 
-### Phase 1 — Bounded Core Domain (Days 6–15)
-5.  **Journey and Milestone endpoints:** CRUD logic for journeys and milestones, including soft deletes.
-6.  **Task completion transaction:** Deploy `POST /tasks/:id/complete` committing task states, XP ledger entries, and outbox records in one atomic transaction.
-7.  **Outbox Polling Cron:** Set up the background cron worker polling outbox queues.
-8.  **Streak and XP services:** Deploy day calculations and ledger balances.
-9.  **Achievements seeds:** Seed initial achievement parameters in DB, deploy achievements matching criteria.
-10. **Notes & Reflections:** Deploy notes CRUD modules and Daily Logs reflections.
-11. **Core Views:** Build Dashboard widgets, Sidebar panels, Greeting states, Journey accordion details.
+### Phase 1 — Roadmap Intelligence & Bounded Core Domain (Days 6–18)
+5.  **Define normalized roadmap types** (`roadmap.types.ts`).
+6.  **Define RoadmapSourceAdapter interface** (`roadmap-adapter.interface.ts`).
+7.  **Implement roadmap.sh adapter** (`roadmapsh.adapter.ts`).
+8.  **Implement CSV adapter** (`csv.adapter.ts`).
+9.  **Implement RoadmapSnapshot persistence** (Prisma CRUD & migration).
+10. **Implement RoadmapNode persistence** (Hierarchy & metadata).
+11. **Implement RoadmapMapping persistence** (Bridge entity & mapping status).
+12. **Implement deterministic reconciliation** (`roadmap-reconciliation.service.ts`).
+13. **Add confidence scoring** (95-100% strong, 80-94% likely, 50-79% ambiguous, <50% new).
+14. **Add user confirmation** (Review UI & manual overrides).
+15. **Implement current-position calculation** (Day 2 starting position determination).
+16. **Implement progressive task materialization** (Converting actionable nodes to tasks).
+17. **Implement daily continuation** (Task completion updating roadmap position & next step).
+18. **Integrate with Journey** (Linking snapshots & mappings to journeys).
+19. **Integrate with Dashboard** (Today's Focus & Current Roadmap Position widget).
+20. **Add duplicate-prevention tests**.
+21. **Add incorrect-completion protection tests**.
+22. **Journey and Milestone endpoints:** CRUD logic for journeys and milestones, including soft deletes.
+23. **Task completion transaction:** Deploy `POST /tasks/:id/complete` committing task states, Independence Signals, XP ledger entries, and outbox records in one atomic transaction.
+24. **Outbox Polling Cron:** Set up the background cron worker polling outbox queues.
+25. **Streak and XP services:** Deploy day calculations and ledger balances.
+26. **Achievements seeds:** Seed initial achievement parameters in DB, deploy achievements matching criteria.
+27. **Notes & Reflections:** Deploy notes CRUD modules and Daily Logs reflections.
+28. **Learning Intelligence Services:** Implement AI Gateway, Learner State tracking, and Dynamic Task generation logic.
+29. **Core Views:** Build Dashboard widgets (Dynamic Today's Focus), Sidebar panels, Greeting states, Journey accordion details.
 
-### Phase 2 — Evidence, Imports & Poland (Days 16–25)
-12. **Evidence CRUD:** Link manual/URL evidence entries, wire task drawer integrations.
-13. **GitHub Connections:** Integrate OAuth callbacks, repository fetching, event trackers, and auto-verifications.
-14. **Public Profile & Heatmaps:** Implement server components rendering profiles, load horizontal activity graphs.
-15. **CSV Batch Importers:** Deploy CSV parses, validating maps, transaction execution blocks.
-16. **Caching & Hardening:** Activate Redis caching on public pages, hook rate limiting checks.
+### Phase 2 — Evidence, Profiles & Polish (Days 19–27)
+29. **Evidence CRUD:** Link manual/URL evidence entries, wire task drawer integrations.
+30. **GitHub Connections:** Integrate OAuth callbacks, repository fetching, event trackers, and auto-verifications.
+31. **Public Profile & Heatmaps:** Implement server components rendering profiles, load horizontal activity graphs.
+32. **Caching & Hardening:** Activate Redis caching on public pages, hook rate limiting checks.
 
-### Phase 3 — Hardening & Release (Days 26–30)
-17. **RLS Activations:** Activate Row-Level Security policies.
-18. **Mobile passes:** Polish css grids, tap targets, responsive drawer shells.
-19. **Errors & Loading states:** Deploy boundaries handlers, skeletons, toast alerts.
-20. **Deployments:** Build container files, deploy to target (Railway), set custom TLS, map Sentry telemetry.
+### Phase 3 — Hardening & Release (Days 28–30)
+33. **RLS Activations:** Activate Row-Level Security policies.
+34. **Mobile passes:** Polish css grids, tap targets, responsive drawer shells.
+35. **Errors & Loading states:** Deploy boundaries handlers, skeletons, toast alerts.
+36. **Deployments:** Build container files, deploy to target (Railway), set custom TLS, map Sentry telemetry.
+
+---

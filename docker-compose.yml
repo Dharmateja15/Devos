@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: devos_user
+      POSTGRES_PASSWORD: devos_password
+      POSTGRES_DB: devos
+    ports:
+      - '5432:5432'
+    volumes:
+      - devos_db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - '6379:6379'
+
+volumes:
+  devos_db_data:

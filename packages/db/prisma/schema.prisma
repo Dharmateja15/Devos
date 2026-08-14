@@ -1,0 +1,692 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["identity", "roadmap", "journey", "evidence", "gamification", "social", "events", "learning"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+enum JourneyStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+
+  @@schema("journey")
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+  RECRUITER
+
+  @@schema("journey")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  SKIPPED
+
+  @@schema("journey")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@schema("journey")
+}
+
+enum IndependenceSignal {
+  AI_ASSISTED
+  GUIDED
+  INDEPENDENT
+
+  @@schema("journey")
+}
+
+enum ProjectStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+
+  @@schema("journey")
+}
+
+enum EvidenceType {
+  GITHUB_COMMIT
+  GITHUB_PR
+  GITHUB_REPO
+  CERTIFICATE
+  MANUAL
+  FILE_UPLOAD
+  EXTERNAL_URL
+  PROJECT_SUBMISSION
+
+  @@schema("evidence")
+}
+
+enum SyncStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@schema("evidence")
+}
+
+enum UserRole {
+  LEARNER
+  RECRUITER
+  ADMIN
+
+  @@schema("identity")
+}
+
+enum AuthProvider {
+  GITHUB
+  GOOGLE
+  EMAIL
+
+  @@schema("identity")
+}
+
+enum DailyLogType {
+  NOTE
+  REFLECTION
+  CHALLENGE
+  WIN
+
+  @@schema("journey")
+}
+
+enum RoadmapSourceType {
+  ROADMAP_SH
+  CSV
+  MARKDOWN
+  DOCUMENT_FALLBACK
+
+  @@schema("roadmap")
+}
+
+enum RoadmapNodeType {
+  TOPIC
+  MILESTONE
+  SKILL
+  PROJECT
+  RESOURCE
+  DECISION
+  OPTIONAL_TOPIC
+
+  @@schema("roadmap")
+}
+
+enum MappingStatus {
+  COMPLETED
+  KNOWN_UNVERIFIED
+  IN_PROGRESS
+  PARTIAL_MATCH
+  NEW
+  AMBIGUOUS
+  SKIPPED
+  USER_CONFIRMED
+
+  @@schema("roadmap")
+}
+
+enum LearnerState {
+  UNKNOWN
+  SELF_REPORTED
+  ASSESSED
+  MASTERED
+  NEEDS_REVIEW
+
+  @@schema("learning")
+}
+
+model User {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique
+  displayName  String    @map("display_name")
+  username     String    @unique
+  passwordHash String?   @map("password_hash")
+  avatarUrl    String?   @map("avatar_url")
+  role         UserRole  @default(LEARNER)
+  timezone     String    @default("UTC")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Authentication & Relations
+  oauthAccounts        OAuthAccount[]
+  sessions             Session[]
+  journeys             Journey[]
+  roadmaps             Roadmap[]
+  roadmapSnapshots     RoadmapSnapshot[]
+  roadmapMappings      RoadmapMapping[]
+  evidenceItems        EvidenceItem[]
+  xpLedger             XpLedger[]
+  streaks              Streak[]
+  achievements         UserAchievement[]
+  publicProfile        PublicProfile?
+  streakHistory        StreakHistory[]
+  learnerConceptStates LearnerConceptState[]
+
+  @@map("users")
+  @@schema("identity")
+}
+
+model OAuthAccount {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  provider       AuthProvider
+  providerId     String       @map("provider_id")
+  accessToken    String?      @map("access_token") // Encrypted at rest
+  refreshToken   String?      @map("refresh_token") // Encrypted at rest
+  tokenExpiresAt DateTime?    @map("token_expires_at") @db.Timestamptz
+  scopes         String[]
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
+  @@schema("identity")
+}
+
+model Session {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  refreshTokenHash String   @unique @map("refresh_token_hash")
+  userAgent        String?  @map("user_agent")
+  ipAddress        String?  @map("ip_address") // Stores INET
+  lastActiveAt     DateTime @default(now()) @map("last_active_at") @db.Timestamptz
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@schema("identity")
+}
+
+enum RoadmapStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+
+  @@schema("roadmap")
+}
+
+enum RoadmapPriority {
+  PRIMARY
+  SECONDARY
+  LOW
+
+  @@schema("roadmap")
+}
+
+model Roadmap {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String          @map("user_id") @db.Uuid
+  title     String
+  slug      String?
+  status    RoadmapStatus   @default(ACTIVE)
+  priority  RoadmapPriority @default(PRIMARY)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime?       @map("deleted_at") @db.Timestamptz
+  metadata  Json            @default("{}")
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots RoadmapSnapshot[]
+
+  @@index([userId, status])
+  @@map("roadmaps")
+  @@schema("roadmap")
+}
+
+model RoadmapSnapshot {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roadmapId     String            @map("roadmap_id") @db.Uuid
+  userId        String            @map("user_id") @db.Uuid
+  sourceType    RoadmapSourceType @map("source_type")
+  sourceUrl     String?           @map("source_url")
+  sourceName    String            @map("source_name")
+  sourceVersion String?           @map("source_version")
+  importedAt    DateTime          @default(now()) @map("imported_at") @db.Timestamptz
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  metadata      Json              @default("{}")
+
+  roadmap Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Restrict)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes   RoadmapNode[]
+
+  @@map("roadmap_snapshots")
+  @@schema("roadmap")
+}
+
+model RoadmapNode {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshotId     String          @map("snapshot_id") @db.Uuid
+  externalNodeId String          @map("external_node_id")
+  parentNodeId   String?         @map("parent_node_id") @db.Uuid
+  title          String
+  description    String?
+  nodeType       RoadmapNodeType @default(TOPIC) @map("node_type")
+  sortOrder      Int             @default(0) @map("sort_order")
+  dependencies   String[]
+  resourceUrls   String[]        @map("resource_urls")
+  metadata       Json            @default("{}")
+
+  snapshot   RoadmapSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  parentNode RoadmapNode?     @relation("NodeHierarchy", fields: [parentNodeId], references: [id], onDelete: SetNull)
+  childNodes RoadmapNode[]    @relation("NodeHierarchy")
+  mappings   RoadmapMapping[]
+
+  @@map("roadmap_nodes")
+  @@schema("roadmap")
+}
+
+model RoadmapMapping {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roadmapNodeId    String        @map("roadmap_node_id") @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  journeyId        String?       @map("journey_id") @db.Uuid
+  taskId           String?       @map("task_id") @db.Uuid
+  projectId        String?       @map("project_id") @db.Uuid
+  skillId          String?       @map("skill_id") @db.Uuid
+  mappingStatus    MappingStatus @default(NEW) @map("mapping_status")
+  confidenceScore  Float         @default(0.0) @map("confidence_score")
+  matchingReason   String?       @map("matching_reason")
+  userConfirmation Boolean       @default(false) @map("user_confirmation")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  roadmapNode RoadmapNode @relation(fields: [roadmapNodeId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey     Journey?    @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  task        Task?       @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  skill       Skill?      @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  @@map("roadmap_mappings")
+  @@schema("roadmap")
+}
+
+model Journey {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  title       String
+  slug        String
+  description String?
+  category    String // e.g., "ai_engineering", "blockchain", "fitness"
+  icon        String?
+  color       String?
+  status      JourneyStatus @default(ACTIVE)
+  visibility  Visibility    @default(PRIVATE)
+  targetDate  DateTime?     @map("target_date") @db.Date
+  sortOrder   Int           @default(0) @map("sort_order")
+  metadata    Json          @default("{}")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones      Milestone[]
+  tasks           Task[]
+  projects        Project[]
+  notes           Note[]
+  dailyLogs       DailyLog[]
+  evidence        EvidenceItem[]
+  xpLedger        XpLedger[]
+  streaks         Streak[]
+  awards          UserAchievement[]
+  roadmapMappings RoadmapMapping[]
+
+  @@unique([userId, slug])
+  @@map("journeys")
+  @@schema("journey")
+}
+
+model Milestone {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyId   String     @map("journey_id") @db.Uuid
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  targetDate  DateTime?  @map("target_date") @db.Date
+  completedAt DateTime?  @map("completed_at") @db.Timestamptz
+  sortOrder   Int        @default(0) @map("sort_order")
+  xpReward    Int        @default(50) @map("xp_reward")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime?  @map("deleted_at") @db.Timestamptz
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+  notes   Note[]
+
+  @@map("milestones")
+  @@schema("journey")
+}
+
+model Task {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  milestoneId        String              @map("milestone_id") @db.Uuid
+  journeyId          String              @map("journey_id") @db.Uuid
+  title              String
+  description        String?
+  status             TaskStatus          @default(TODO)
+  priority           TaskPriority        @default(MEDIUM)
+  independenceSignal IndependenceSignal? @map("independence_signal")
+  dueDate            DateTime?           @map("due_date") @db.Date
+  completedAt        DateTime?           @map("completed_at") @db.Timestamptz
+  sortOrder          Int                 @default(0) @map("sort_order")
+  xpReward           Int                 @default(10) @map("xp_reward")
+  tags               String[]
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz
+
+  milestone       Milestone        @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  journey         Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  notes           Note[]
+  evidence        EvidenceItem[]
+  skills          TaskSkill[]
+  roadmapMappings RoadmapMapping[]
+
+  @@map("tasks")
+  @@schema("journey")
+}
+
+model Skill {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tasks           TaskSkill[]
+  roadmapMappings RoadmapMapping[]
+
+  @@map("skills")
+  @@schema("journey")
+}
+
+model TaskSkill {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  skillId   String   @map("skill_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, skillId])
+  @@map("task_skills")
+  @@schema("journey")
+}
+
+model Project {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyId    String        @map("journey_id") @db.Uuid
+  title        String
+  description  String?
+  repoUrl      String?       @map("repo_url")
+  liveUrl      String?       @map("live_url")
+  thumbnailUrl String?       @map("thumbnail_url")
+  status       ProjectStatus @default(IN_PROGRESS)
+  techStack    String[]      @map("tech_stack")
+  startedAt    DateTime?     @map("started_at") @db.Date
+  completedAt  DateTime?     @map("completed_at") @db.Timestamptz
+  xpReward     Int           @default(100) @map("xp_reward")
+  metadata     Json          @default("{}")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz
+
+  journey         Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  evidence        EvidenceItem[]
+  roadmapMappings RoadmapMapping[]
+
+  @@map("projects")
+  @@schema("journey")
+}
+
+model Note {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyId   String    @map("journey_id") @db.Uuid
+  taskId      String?   @map("task_id") @db.Uuid
+  milestoneId String?   @map("milestone_id") @db.Uuid
+  title       String?
+  content     String    @db.Text
+  contentType String    @default("markdown") @map("content_type")
+  tags        String[]
+  isPinned    Boolean   @default(false) @map("is_pinned")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  journey   Journey    @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  task      Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  @@map("notes")
+  @@schema("journey")
+}
+
+model DailyLog {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journeyId String       @map("journey_id") @db.Uuid
+  title     String
+  content   String       @db.Text
+  type      DailyLogType @default(NOTE)
+  date      DateTime     @default(now()) @db.Date
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@map("daily_logs")
+  @@schema("journey")
+}
+
+model EvidenceItem {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  journeyId    String?      @map("journey_id") @db.Uuid
+  taskId       String?      @map("task_id") @db.Uuid
+  projectId    String?      @map("project_id") @db.Uuid
+  evidenceType EvidenceType @map("evidence_type")
+  title        String
+  description  String?
+  url          String
+  verified     Boolean      @default(false)
+  verifiedAt   DateTime?    @map("verified_at") @db.Timestamptz
+  metadata     Json         @default("{}")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz
+
+  // GitHub references
+  githubSha     String?   @map("github_sha")
+  githubRepo    String?   @map("github_repo")
+  githubAuthor  String?   @map("github_author")
+  githubEventAt DateTime? @map("github_event_at") @db.Timestamptz
+
+  // Certificate references
+  issuer       String?
+  issuedAt     DateTime? @map("issued_at") @db.Date
+  expiresAt    DateTime? @map("expires_at") @db.Date
+  credentialId String?   @map("credential_id")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey Journey? @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@map("evidence_items")
+  @@schema("evidence")
+}
+
+model XpLedger {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  journeyId    String?  @map("journey_id") @db.Uuid
+  sourceType   String   @map("source_type")
+  sourceId     String?  @map("source_id") @db.Uuid
+  xpDelta      Int      @map("xp_delta")
+  balanceAfter Int      @map("balance_after")
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey Journey? @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+
+  @@map("xp_ledger")
+  @@schema("gamification")
+}
+
+model Streak {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  journeyId        String?   @map("journey_id") @db.Uuid
+  currentStreak    Int       @default(0) @map("current_streak")
+  longestStreak    Int       @default(0) @map("longest_streak")
+  lastActivityDate DateTime? @map("last_activity_date") @db.Date
+  gracePeriodUsed  Boolean   @default(false) @map("grace_period_used")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey Journey? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+  @@schema("gamification")
+}
+
+model Achievement {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String            @unique
+  name        String
+  description String
+  icon        String?
+  xpReward    Int               @default(0) @map("xp_reward")
+  category    String?
+  criteria    Json              @default("{}")
+  isActive    Boolean           @default(true) @map("is_active")
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  awards      UserAchievement[]
+
+  @@map("achievements")
+  @@schema("gamification")
+}
+
+model UserAchievement {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  achievementId String   @map("achievement_id") @db.Uuid
+  journeyId     String?  @map("journey_id") @db.Uuid
+  awardedAt     DateTime @default(now()) @map("awarded_at") @db.Timestamptz
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  journey     Journey?    @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, achievementId])
+  @@map("achievement_awards")
+  @@schema("gamification")
+}
+
+model StreakHistory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("streak_history")
+  @@schema("gamification")
+}
+
+model PublicProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  isPublic           Boolean  @default(false) @map("is_public")
+  headline           String?
+  bio                String?
+  socialLinks        Json     @default("{}") @map("social_links")
+  featuredJourneyIds String[] @map("featured_journey_ids") @db.Uuid
+  viewCount          Int      @default(0) @map("view_count")
+
+  // Recruiter-friendly stats
+  totalXp                Int @default(0) @map("total_xp")
+  streakCount            Int @default(0) @map("streak_count")
+  completedJourneysCount Int @default(0) @map("completed_journeys_count")
+  totalTasksCompleted    Int @default(0) @map("total_tasks_completed")
+  verifiedEvidenceCount  Int @default(0) @map("verified_evidence_count")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("public_profiles")
+  @@schema("social")
+}
+
+model OutboxEvent {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  eventType     String    @map("event_type")
+  payload       Json
+  userId        String    @map("user_id") @db.Uuid
+  published     Boolean   @default(false)
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("outbox")
+  @@schema("events")
+}
+
+model Concept {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String   @unique
+  description String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  learnerStates LearnerConceptState[]
+
+  @@map("concepts")
+  @@schema("learning")
+}
+
+model LearnerConceptState {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  conceptId       String       @map("concept_id") @db.Uuid
+  state           LearnerState @default(UNKNOWN)
+  lastEvaluatedAt DateTime?    @map("last_evaluated_at") @db.Timestamptz
+  nextReviewAt    DateTime?    @map("next_review_at") @db.Timestamptz
+  userIntent      String?      @map("user_intent")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conceptId])
+  @@map("learner_concept_states")
+  @@schema("learning")
+}
