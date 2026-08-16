@@ -35,7 +35,12 @@ describe('ProjectGapService (Sub-Block 6B)', () => {
       roadmap: {
         findUnique: jest.fn().mockImplementation(({ where }: any) => {
           if (where.id === 'rm-1') return Promise.resolve(mockRoadmap);
-          if (where.id === 'rm-other') return Promise.resolve({ ...mockRoadmap, id: 'rm-other', userId: 'user-other' });
+          if (where.id === 'rm-other')
+            return Promise.resolve({
+              ...mockRoadmap,
+              id: 'rm-other',
+              userId: 'user-other',
+            });
           return Promise.resolve(null);
         }),
       },
@@ -131,7 +136,9 @@ describe('ProjectGapService (Sub-Block 6B)', () => {
     });
 
     it('5. Rejects unauthorized user access with ForbiddenException', async () => {
-      await expect(service.analyzeProjectGaps('user-1', 'rm-other')).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.analyzeProjectGaps('user-1', 'rm-other'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -145,12 +152,21 @@ describe('ProjectGapService (Sub-Block 6B)', () => {
       });
 
       // User 1 has evidence in DB
-      prismaService.evidenceItem.findMany.mockImplementation(({ where }: any) => {
-        if (where.userId === 'user-1') {
-          return Promise.resolve([{ id: 'ev-user1', userId: 'user-1', title: 'REST API Repo', metadata: { detectedTechnologies: ['TypeScript'] } }]);
-        }
-        return Promise.resolve([]); // User 2 has 0 evidence
-      });
+      prismaService.evidenceItem.findMany.mockImplementation(
+        ({ where }: any) => {
+          if (where.userId === 'user-1') {
+            return Promise.resolve([
+              {
+                id: 'ev-user1',
+                userId: 'user-1',
+                title: 'REST API Repo',
+                metadata: { detectedTechnologies: ['TypeScript'] },
+              },
+            ]);
+          }
+          return Promise.resolve([]); // User 2 has 0 evidence
+        },
+      );
 
       const user2Gaps = await service.analyzeProjectGaps('user-2', 'rm-user2');
 

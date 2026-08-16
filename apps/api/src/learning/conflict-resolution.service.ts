@@ -19,7 +19,8 @@ export interface ConflictAnalysisDto {
   conflictType: ConflictType;
   winningSignal: ConflictSignalInfo;
   conflictingSignal: ConflictSignalInfo;
-  suggestedAction: 'KEEP_USER_STATE' | 'FLAG_FOR_REVIEW' | 'RECOMMEND_ASSESSMENT';
+  suggestedAction:
+    'KEEP_USER_STATE' | 'FLAG_FOR_REVIEW' | 'RECOMMEND_ASSESSMENT';
   whyReason: string;
   requiresUserReview: boolean;
 }
@@ -54,16 +55,26 @@ export class ConflictResolutionService {
     // Check for explicit negative/rejected evidence assertions
     for (const ev of evidenceItems) {
       const meta = (ev.metadata as Record<string, any>) || {};
-      const isExplicitlyRejected = meta.verificationStatus === 'REJECTED' || meta.negativeAssertion === true;
+      const isExplicitlyRejected =
+        meta.verificationStatus === 'REJECTED' ||
+        meta.negativeAssertion === true;
 
       if (isExplicitlyRejected) {
-        const techs: string[] = Array.isArray(meta.detectedTechnologies) ? meta.detectedTechnologies : [];
+        const techs: string[] = Array.isArray(meta.detectedTechnologies)
+          ? meta.detectedTechnologies
+          : [];
 
         for (const tech of techs) {
           const techLower = tech.toLowerCase().trim();
-          const stateRec = learnerStates.find(l => l.concept.title.toLowerCase().trim() === techLower);
+          const stateRec = learnerStates.find(
+            (l) => l.concept.title.toLowerCase().trim() === techLower,
+          );
 
-          if (stateRec && (stateRec.userIntent === 'CONFIRM' || stateRec.state === LearnerState.MASTERED)) {
+          if (
+            stateRec &&
+            (stateRec.userIntent === 'CONFIRM' ||
+              stateRec.state === LearnerState.MASTERED)
+          ) {
             conflicts.push({
               conceptId: stateRec.conceptId,
               conceptTitle: stateRec.concept.title,
@@ -91,12 +102,18 @@ export class ConflictResolutionService {
     for (const proj of userProjects) {
       for (const tech of proj.techStack) {
         const techLower = tech.toLowerCase().trim();
-        const hasExplicitNegativeEv = proj.evidence.some(e => {
+        const hasExplicitNegativeEv = proj.evidence.some((e) => {
           const meta = (e.metadata as Record<string, any>) || {};
-          return meta.verificationStatus === 'REJECTED' || meta.negativeAssertion === true;
+          return (
+            meta.verificationStatus === 'REJECTED' ||
+            meta.negativeAssertion === true
+          );
         });
 
-        if (hasExplicitNegativeEv && !conflicts.some(c => c.conceptTitle.toLowerCase() === techLower)) {
+        if (
+          hasExplicitNegativeEv &&
+          !conflicts.some((c) => c.conceptTitle.toLowerCase() === techLower)
+        ) {
           conflicts.push({
             conceptId: `tech-${techLower.replace(/[^a-z0-9]/g, '-')}`,
             conceptTitle: tech,

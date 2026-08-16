@@ -21,7 +21,9 @@ describe('RecommendationSuppressionService (Sub-Block 6D - Requirement R)', () =
       ],
     }).compile();
 
-    service = module.get<RecommendationSuppressionService>(RecommendationSuppressionService);
+    service = module.get<RecommendationSuppressionService>(
+      RecommendationSuppressionService,
+    );
   });
 
   describe('Observable Suppression & Invariants', () => {

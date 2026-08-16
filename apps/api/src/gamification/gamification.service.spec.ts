@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GamificationService, GamificationContext } from './gamification.service';
+import {
+  GamificationService,
+  GamificationContext,
+} from './gamification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 describe('GamificationService', () => {
@@ -15,7 +18,10 @@ describe('GamificationService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [GamificationService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        GamificationService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
     }).compile();
 
     service = module.get<GamificationService>(GamificationService);
@@ -27,11 +33,13 @@ describe('GamificationService', () => {
     const ctx: GamificationContext = { userId: 'u1', prismaTx: mockPrisma };
 
     const result = await service.awardXp(ctx, 10, 't1', 'TASK_COMPLETION');
-    
+
     expect(result).toBe(true);
-    expect(mockPrisma.xpLedger.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ xpDelta: 10, balanceAfter: 20 })
-    }));
+    expect(mockPrisma.xpLedger.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ xpDelta: 10, balanceAfter: 20 }),
+      }),
+    );
   });
 
   it('should not award XP twice for same source', async () => {
@@ -39,7 +47,7 @@ describe('GamificationService', () => {
     const ctx: GamificationContext = { userId: 'u1', prismaTx: mockPrisma };
 
     const result = await service.awardXp(ctx, 10, 't1', 'TASK_COMPLETION');
-    
+
     expect(result).toBe(false);
     expect(mockPrisma.xpLedger.create).not.toHaveBeenCalled();
   });
@@ -51,16 +59,21 @@ describe('GamificationService', () => {
       id: 's1',
       currentStreak: 2,
       longestStreak: 2,
-      lastActivityDate: new Date('2026-08-11T00:00:00.000Z') // 2 days ago
+      lastActivityDate: new Date('2026-08-11T00:00:00.000Z'), // 2 days ago
     });
 
     const ctx: GamificationContext = { userId: 'u1', prismaTx: mockPrisma };
-    const result = await service.processStreak(ctx, new Date('2026-08-13T01:00:00.000Z'));
+    const result = await service.processStreak(
+      ctx,
+      new Date('2026-08-13T01:00:00.000Z'),
+    );
 
     // gap > 1 day, so streak breaks and resets to 1
     expect(result).toBe(1);
-    expect(mockPrisma.streak.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ currentStreak: 1, longestStreak: 2 })
-    }));
+    expect(mockPrisma.streak.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ currentStreak: 1, longestStreak: 2 }),
+      }),
+    );
   });
 });

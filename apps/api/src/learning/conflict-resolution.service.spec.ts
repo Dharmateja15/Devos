@@ -55,7 +55,11 @@ describe('ConflictResolutionService (Sub-Block 6D - Requirement P Semantic Invar
         },
       ]);
       prismaService.evidenceItem.findMany.mockResolvedValue([
-        { id: 'ev-unver', verified: false, metadata: { detectedTechnologies: [] } },
+        {
+          id: 'ev-unver',
+          verified: false,
+          metadata: { detectedTechnologies: [] },
+        },
       ]);
 
       const res = await service.getConflicts('user-1');
@@ -74,7 +78,11 @@ describe('ConflictResolutionService (Sub-Block 6D - Requirement P Semantic Invar
         },
       ]);
       prismaService.evidenceItem.findMany.mockResolvedValue([
-        { id: 'ev-ver', verified: true, metadata: { detectedTechnologies: ['TypeScript'] } }, // React absent
+        {
+          id: 'ev-ver',
+          verified: true,
+          metadata: { detectedTechnologies: ['TypeScript'] },
+        }, // React absent
       ]);
 
       const res = await service.getConflicts('user-1');
@@ -166,7 +174,10 @@ describe('ConflictResolutionService (Sub-Block 6D - Requirement P Semantic Invar
           id: 'ev-rej',
           title: 'Python Submission',
           verified: false,
-          metadata: { verificationStatus: 'REJECTED', detectedTechnologies: ['Python'] },
+          metadata: {
+            verificationStatus: 'REJECTED',
+            detectedTechnologies: ['Python'],
+          },
         },
       ]);
 
@@ -175,7 +186,9 @@ describe('ConflictResolutionService (Sub-Block 6D - Requirement P Semantic Invar
       expect(res.length).toBe(1);
       expect(res[0].conceptTitle).toBe('Python');
       expect(res[0].conflictType).toBe('USER_CONFIRMATION_VS_EVIDENCE');
-      expect(res[0].conflictingSignal.source).toBe('AUTHORITATIVE_NEGATIVE_EVIDENCE');
+      expect(res[0].conflictingSignal.source).toBe(
+        'AUTHORITATIVE_NEGATIVE_EVIDENCE',
+      );
     });
 
     it('9. Invariant Check: Zero database write operations executed during conflict analysis', async () => {
@@ -187,20 +200,22 @@ describe('ConflictResolutionService (Sub-Block 6D - Requirement P Semantic Invar
     });
 
     it('10. Multi-User Isolation: User A conflicts do not leak to User B', async () => {
-      prismaService.learnerConceptState.findMany.mockImplementation(({ where }: any) => {
-        if (where.userId === 'user-1') {
-          return Promise.resolve([
-            {
-              userId: 'user-1',
-              conceptId: 'c-py',
-              state: LearnerState.MASTERED,
-              userIntent: 'CONFIRM',
-              concept: { id: 'c-py', title: 'Python' },
-            },
-          ]);
-        }
-        return Promise.resolve([]);
-      });
+      prismaService.learnerConceptState.findMany.mockImplementation(
+        ({ where }: any) => {
+          if (where.userId === 'user-1') {
+            return Promise.resolve([
+              {
+                userId: 'user-1',
+                conceptId: 'c-py',
+                state: LearnerState.MASTERED,
+                userIntent: 'CONFIRM',
+                concept: { id: 'c-py', title: 'Python' },
+              },
+            ]);
+          }
+          return Promise.resolve([]);
+        },
+      );
 
       const resUser2 = await service.getConflicts('user-2');
       expect(resUser2).toEqual([]);

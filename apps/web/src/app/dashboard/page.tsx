@@ -40,8 +40,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div><Link href="/journeys">My Journeys</Link></div>
+      <div style={{ marginTop: 15, display: 'flex', gap: 15 }}>
+        <Link href="/journeys">My Journeys</Link>
+        <Link href="/xp">XP History</Link>
+        <Link href="/achievements">Achievements</Link>
+      </div>
       <button onClick={logout} style={{ marginTop: 20 }}>Logout</button>
     </div>
   );
 }
+

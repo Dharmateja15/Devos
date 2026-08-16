@@ -1,5 +1,6 @@
-import { API_BASE_URL } from '../api';
+import { apiFetch } from '../api';
 
+// Domain Enums / String Literals matching Backend Contracts
 export type LearnerState = 'UNKNOWN' | 'SELF_REPORTED' | 'ASSESSED' | 'MASTERED' | 'NEEDS_REVIEW';
 export type FreshnessState = 'FRESH' | 'AGING' | 'STALE' | 'UNKNOWN_FRESHNESS';
 export type SignalStrength = 'STRONG' | 'MEDIUM' | 'WEAK';
@@ -9,6 +10,7 @@ export type SuggestedAction = 'KEEP_USER_STATE' | 'FLAG_FOR_REVIEW' | 'RECOMMEND
 export type PaceState = 'LOW_ACTIVITY' | 'STEADY' | 'HIGH_ACTIVITY';
 export type GapStatus = 'SATISFIED' | 'EVIDENCE_FOUND' | 'IN_PROGRESS' | 'MISSING';
 
+// 1. Capability Discovery
 export interface DiscoveredCapabilityDto {
   conceptId?: string;
   conceptTitle: string;
@@ -25,6 +27,7 @@ export interface DiscoveredCapabilitiesResponseDto {
   capabilities: DiscoveredCapabilityDto[];
 }
 
+// 2. Knowledge Freshness
 export interface CapabilityFreshnessDto {
   conceptId?: string;
   capabilityTitle: string;
@@ -48,6 +51,7 @@ export interface CapabilityFreshnessResponseDto {
   freshnessList: CapabilityFreshnessDto[];
 }
 
+// 3. Freshness Recommendations
 export interface FreshnessRecommendationDto {
   conceptId: string;
   conceptTitle: string;
@@ -67,6 +71,7 @@ export interface RoadmapFreshnessRecommendationsResponseDto {
   recommendations: FreshnessRecommendationDto[];
 }
 
+// 4. Evidence Conflicts
 export interface ConflictSignalInfo {
   source: string;
   precedenceRank: number;
@@ -84,6 +89,7 @@ export interface ConflictAnalysisDto {
   requiresUserReview: boolean;
 }
 
+// 5. Recommendation Suppression
 export interface ConceptSuppressionDto {
   conceptId: string;
   conceptTitle: string;
@@ -100,6 +106,7 @@ export interface SuppressionResultDto {
   suppressionList: ConceptSuppressionDto[];
 }
 
+// 6. Pace Adaptation
 export interface PaceAdaptationDto {
   roadmapId: string;
   roadmapTitle: string;
@@ -112,6 +119,7 @@ export interface PaceAdaptationDto {
   explanation: string;
 }
 
+// 7. Project Gaps
 export interface ProjectGapResult {
   nodeId: string; // Exact RoadmapNode UUID match
   nodeTitle: string;
@@ -137,7 +145,10 @@ export interface ProjectGapAnalysisResponseDto {
   gaps: ProjectGapResult[];
 }
 
+// 8. Goal Impact Analysis
 export interface GoalChangeImpactRequestDto {
+  targetPriority?: 'PRIMARY' | 'SECONDARY' | 'EXPLORATORY';
+  targetStatus?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
   targetRoleOrGoal?: string;
   addedTechnologies?: string[];
   removedTechnologies?: string[];
@@ -145,108 +156,191 @@ export interface GoalChangeImpactRequestDto {
 
 export interface GoalChangeImpactResponseDto {
   roadmapId: string;
-  roadmapTitle: string;
-  targetRoleOrGoal: string;
-  totalNodesEvaluated: number;
-  affectedNodeIds: string[];
-  redundantNodeIds: string[];
-  newlyRequiredCapabilities: string[];
+  roadmapTitle?: string;
+  previousPriority?: string;
+  newPriority?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  affectedNodesCount?: number;
+  activeMaterializedTasksCount?: number;
+  retainedUsefulTasks?: { taskId: string; title: string; reason: string }[];
+  deprioritizedTasks?: { taskId: string; title: string; newFocusScore: number }[];
+  prerequisitesAffected?: { nodeId: string; nodeTitle: string; impactDescription: string }[];
+  estimatedTimelineDeltaDays?: number;
   summaryExplanation: string;
-  recommendedAdjustments: string[];
+  targetRoleOrGoal?: string;
+  totalNodesEvaluated?: number;
+  affectedNodeIds?: string[];
+  redundantNodeIds?: string[];
+  newlyRequiredCapabilities?: string[];
+  recommendedAdjustments?: string[];
 }
 
-function getHeaders(accessToken?: string | null): HeadersInit {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
-  }
-  return headers;
+// Node-level Skip Impact Analysis
+export interface SkipImpactAnalysisResponseDto {
+  targetNode: { id: string; title: string };
+  blockedDependentNodes: { id: string; title: string }[];
+  impactWarning: string;
 }
+
+// Complementary Context Response
+export interface ComplementaryContextNodeDto {
+  nodeId: string;
+  nodeTitle: string;
+  matchedConceptTitle: string;
+  learnerCurrentState: LearnerState;
+  suggestedTaskTitle: string;
+  suggestedTaskDescription: string;
+  whyReason: string;
+}
+
+export interface ComplementaryContextResponseDto {
+  roadmapId: string;
+  roadmapTitle: string;
+  totalComplementaryNodes: number;
+  complementaryNodes: ComplementaryContextNodeDto[];
+}
+
+// Node Decomposition Request/Response
+export interface DecomposeNodeRequestDto {
+  forceDecomposition?: boolean;
+}
+
+export interface NodeDecompositionResponseDto {
+  nodeId: string;
+  nodeTitle: string;
+  subTasks: { title: string; description: string; estimatedHours: number }[];
+  explanation: string;
+}
+
+export interface DismissDecompositionRequestDto {
+  reason?: string;
+}
+
+export interface DismissDecompositionResponseDto {
+  success: boolean;
+  message: string;
+}
+
+// ==========================================
+// Phase 5B.1 Intelligence API Client Functions
+// Reuses central apiFetch from ../api
+// ==========================================
 
 // 1. GET /api/v1/capabilities/discovered
-export async function fetchDiscoveredCapabilities(accessToken?: string | null): Promise<DiscoveredCapabilitiesResponseDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/capabilities/discovered`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch discovered capabilities');
-  return res.json();
+export async function fetchDiscoveredCapabilities(
+  accessToken?: string | null
+): Promise<DiscoveredCapabilitiesResponseDto> {
+  return apiFetch<DiscoveredCapabilitiesResponseDto>('/api/v1/capabilities/discovered', { accessToken });
 }
 
 // 2. GET /api/v1/capabilities/freshness
-export async function fetchCapabilityFreshness(accessToken?: string | null): Promise<CapabilityFreshnessResponseDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/capabilities/freshness`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch capability freshness');
-  return res.json();
+export async function fetchCapabilityFreshness(
+  accessToken?: string | null
+): Promise<CapabilityFreshnessResponseDto> {
+  return apiFetch<CapabilityFreshnessResponseDto>('/api/v1/capabilities/freshness', { accessToken });
 }
 
 // 3. GET /api/v1/roadmaps/:id/freshness-recommendations
-export async function fetchRoadmapFreshnessRecommendations(roadmapId: string, accessToken?: string | null): Promise<RoadmapFreshnessRecommendationsResponseDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/roadmaps/${roadmapId}/freshness-recommendations`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch roadmap freshness recommendations');
-  return res.json();
+export async function fetchRoadmapFreshnessRecommendations(
+  roadmapId: string,
+  accessToken?: string | null
+): Promise<RoadmapFreshnessRecommendationsResponseDto> {
+  return apiFetch<RoadmapFreshnessRecommendationsResponseDto>(
+    `/api/v1/roadmaps/${roadmapId}/freshness-recommendations`,
+    { accessToken }
+  );
 }
 
 // 4. GET /api/v1/learning/conflicts
-export async function fetchConflicts(accessToken?: string | null): Promise<ConflictAnalysisDto[]> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/learning/conflicts`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch conflicts');
-  return res.json();
+export async function fetchConflicts(
+  accessToken?: string | null
+): Promise<ConflictAnalysisDto[]> {
+  return apiFetch<ConflictAnalysisDto[]>('/api/v1/learning/conflicts', { accessToken });
 }
 
 // 5. GET /api/v1/learning/recommendation-adaptation
-export async function fetchRecommendationSuppression(accessToken?: string | null): Promise<SuppressionResultDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/learning/recommendation-adaptation`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch recommendation suppression');
-  return res.json();
+export async function fetchRecommendationSuppression(
+  accessToken?: string | null
+): Promise<SuppressionResultDto> {
+  return apiFetch<SuppressionResultDto>('/api/v1/learning/recommendation-adaptation', { accessToken });
 }
 
 // 6. GET /api/v1/roadmaps/:id/adaptation
-export async function fetchPaceAdaptation(roadmapId: string, accessToken?: string | null): Promise<PaceAdaptationDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/roadmaps/${roadmapId}/adaptation`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch pace adaptation');
-  return res.json();
+export async function fetchPaceAdaptation(
+  roadmapId: string,
+  accessToken?: string | null
+): Promise<PaceAdaptationDto> {
+  return apiFetch<PaceAdaptationDto>(`/api/v1/roadmaps/${roadmapId}/adaptation`, { accessToken });
 }
 
 // 7. GET /api/v1/roadmaps/:id/project-gaps
-export async function fetchProjectGaps(roadmapId: string, accessToken?: string | null): Promise<ProjectGapAnalysisResponseDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/roadmaps/${roadmapId}/project-gaps`, {
-    headers: getHeaders(accessToken),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch project gaps');
-  return res.json();
+export async function fetchProjectGaps(
+  roadmapId: string,
+  accessToken?: string | null
+): Promise<ProjectGapAnalysisResponseDto> {
+  return apiFetch<ProjectGapAnalysisResponseDto>(`/api/v1/roadmaps/${roadmapId}/project-gaps`, { accessToken });
 }
 
-// 8. POST /api/v1/roadmaps/:id/impact-analysis (LAZY TRIGGERED)
+// 8. POST /api/v1/roadmaps/:id/impact-analysis
 export async function analyzeGoalChangeImpact(
   roadmapId: string,
   payload: GoalChangeImpactRequestDto,
   accessToken?: string | null
 ): Promise<GoalChangeImpactResponseDto> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/roadmaps/${roadmapId}/impact-analysis`, {
+  return apiFetch<GoalChangeImpactResponseDto>(`/api/v1/roadmaps/${roadmapId}/impact-analysis`, {
     method: 'POST',
-    headers: getHeaders(accessToken),
-    credentials: 'include',
+    accessToken,
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Failed to analyze goal change impact');
-  return res.json();
+}
+
+// 9. POST /api/v1/roadmaps/:id/skip-impact/:nodeId
+export async function analyzeSkipImpact(
+  roadmapId: string,
+  nodeId: string,
+  accessToken?: string | null
+): Promise<SkipImpactAnalysisResponseDto> {
+  return apiFetch<SkipImpactAnalysisResponseDto>(`/api/v1/roadmaps/${roadmapId}/skip-impact/${nodeId}`, {
+    method: 'POST',
+    accessToken,
+  });
+}
+
+// 10. GET /api/v1/roadmaps/:id/complementary-context
+export async function fetchComplementaryContext(
+  roadmapId: string,
+  nodeId?: string,
+  accessToken?: string | null
+): Promise<ComplementaryContextResponseDto> {
+  const query = nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : '';
+  return apiFetch<ComplementaryContextResponseDto>(`/api/v1/roadmaps/${roadmapId}/complementary-context${query}`, {
+    accessToken,
+  });
+}
+
+// 11. POST /api/v1/roadmaps/nodes/:nodeId/decompose
+export async function decomposeNode(
+  nodeId: string,
+  payload: DecomposeNodeRequestDto = {},
+  accessToken?: string | null
+): Promise<NodeDecompositionResponseDto> {
+  return apiFetch<NodeDecompositionResponseDto>(`/api/v1/roadmaps/nodes/${nodeId}/decompose`, {
+    method: 'POST',
+    accessToken,
+    body: JSON.stringify(payload),
+  });
+}
+
+// 12. POST /api/v1/roadmaps/nodes/:nodeId/dismiss-decomposition
+export async function dismissDecomposition(
+  nodeId: string,
+  payload: DismissDecompositionRequestDto = {},
+  accessToken?: string | null
+): Promise<DismissDecompositionResponseDto> {
+  return apiFetch<DismissDecompositionResponseDto>(`/api/v1/roadmaps/nodes/${nodeId}/dismiss-decomposition`, {
+    method: 'POST',
+    accessToken,
+    body: JSON.stringify(payload),
+  });
 }

@@ -10,19 +10,22 @@ export class CsvAdapter implements RoadmapSourceAdapter {
   }
 
   async normalize(input: string): Promise<NormalizedRoadmap> {
-    const lines = input.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    
+    const lines = input
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
     if (lines.length === 0) {
       throw new BadRequestException('Empty CSV data');
     }
 
-    const headers = lines[0].split(',').map(h => h.toLowerCase());
+    const headers = lines[0].split(',').map((h) => h.toLowerCase());
     const nodes: NormalizedRoadmapNode[] = [];
 
     for (let i = 1; i < lines.length; i++) {
       const parts = lines[i].split(','); // Simplified naive CSV parsing for MVP
       const nodeData: any = {};
-      
+
       headers.forEach((header, index) => {
         nodeData[header] = parts[index] || '';
       });
@@ -40,9 +43,11 @@ export class CsvAdapter implements RoadmapSourceAdapter {
         description: nodeData.description,
         nodeType,
         sortOrder: parseInt(nodeData.sortorder, 10) || i,
-        dependencies: nodeData.dependencies ? nodeData.dependencies.split('|') : [],
+        dependencies: nodeData.dependencies
+          ? nodeData.dependencies.split('|')
+          : [],
         resourceUrls: nodeData.resources ? nodeData.resources.split('|') : [],
-        metadata: { source: 'csv' }
+        metadata: { source: 'csv' },
       });
     }
 
@@ -50,7 +55,7 @@ export class CsvAdapter implements RoadmapSourceAdapter {
       sourceName: 'CSV Imported Roadmap',
       sourceType: RoadmapSourceType.CSV,
       nodes,
-      metadata: { rowCount: nodes.length }
+      metadata: { rowCount: nodes.length },
     };
   }
 }

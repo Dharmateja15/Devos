@@ -42,6 +42,9 @@ export default function JourneysPage() {
         <input placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} required />
         <input placeholder="Category" value={category} onChange={e => setCategory(e.target.value)} required />
         <button type="submit">Create Journey</button>
+        <Link href="/import" style={{ marginLeft: 15 }}>
+          Import CSV Tasks
+        </Link>
       </form>
       <ul>
         {journeys.map((j: any) => (

@@ -1,11 +1,19 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class JourneysService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createJourney(userId: string, data: { title: string, category: string, description?: string }) {
+  async createJourney(
+    userId: string,
+    data: { title: string; category: string; description?: string },
+  ) {
     return this.prisma.journey.create({
       data: {
         userId,
@@ -24,7 +32,7 @@ export class JourneysService {
       take: limit,
       include: {
         _count: { select: { milestones: true, tasks: true } },
-      }
+      },
     };
     if (cursor) {
       query.cursor = { id: cursor };
@@ -43,11 +51,11 @@ export class JourneysService {
           include: {
             tasks: {
               where: { deletedAt: null },
-              orderBy: { sortOrder: 'asc' }
-            }
-          }
-        }
-      }
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
+        },
+      },
     });
 
     if (!journey || journey.deletedAt) {
@@ -62,13 +70,13 @@ export class JourneysService {
     let completedTasks = 0;
     let totalTasks = 0;
     let completedMilestones = 0;
-    let totalMilestones = journey.milestones.length;
+    const totalMilestones = journey.milestones.length;
 
-    journey.milestones.forEach(m => {
+    journey.milestones.forEach((m) => {
       let mCompletedTasks = 0;
-      let mTotalTasks = m.tasks.length;
-      
-      m.tasks.forEach(t => {
+      const mTotalTasks = m.tasks.length;
+
+      m.tasks.forEach((t) => {
         totalTasks++;
         if (t.status === 'DONE') {
           completedTasks++;
@@ -81,12 +89,29 @@ export class JourneysService {
       }
     });
 
-    const progress = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+    const progress =
+      totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
-    return { ...journey, progress, completedTasks, totalTasks, completedMilestones, totalMilestones };
+    return {
+      ...journey,
+      progress,
+      completedTasks,
+      totalTasks,
+      completedMilestones,
+      totalMilestones,
+    };
   }
 
-  async updateJourney(userId: string, id: string, data: Partial<{ title: string, category: string, description: string, status: any }>) {
+  async updateJourney(
+    userId: string,
+    id: string,
+    data: Partial<{
+      title: string;
+      category: string;
+      description: string;
+      status: any;
+    }>,
+  ) {
     const journey = await this.prisma.journey.findUnique({ where: { id } });
     if (!journey || journey.deletedAt) throw new NotFoundException();
     if (journey.userId !== userId) throw new ForbiddenException();
@@ -113,27 +138,34 @@ export class JourneysService {
     });
   }
 
-  async reorderMilestones(userId: string, journeyId: string, ordering: { id: string, sort_order: number }[]) {
-    const journey = await this.prisma.journey.findUnique({ where: { id: journeyId } });
-    if (!journey || journey.deletedAt) throw new NotFoundException('Journey not found');
+  async reorderMilestones(
+    userId: string,
+    journeyId: string,
+    ordering: { id: string; sort_order: number }[],
+  ) {
+    const journey = await this.prisma.journey.findUnique({
+      where: { id: journeyId },
+    });
+    if (!journey || journey.deletedAt)
+      throw new NotFoundException('Journey not found');
     if (journey.userId !== userId) throw new ForbiddenException();
 
-    const milestoneIds = ordering.map(o => o.id);
+    const milestoneIds = ordering.map((o) => o.id);
     const milestones = await this.prisma.milestone.findMany({
-      where: { id: { in: milestoneIds }, journeyId, deletedAt: null }
+      where: { id: { in: milestoneIds }, journeyId, deletedAt: null },
     });
-    
+
     if (milestones.length !== milestoneIds.length) {
       throw new BadRequestException('Invalid milestone IDs provided');
     }
 
     return this.prisma.$transaction(
-      ordering.map(order => 
+      ordering.map((order) =>
         this.prisma.milestone.update({
           where: { id: order.id },
-          data: { sortOrder: order.sort_order }
-        })
-      )
+          data: { sortOrder: order.sort_order },
+        }),
+      ),
     );
   }
 
@@ -146,10 +178,10 @@ export class JourneysService {
           include: {
             tasks: {
               where: { deletedAt: null },
-            }
-          }
-        }
-      }
+            },
+          },
+        },
+      },
     });
 
     if (!journey || journey.deletedAt) {
@@ -162,13 +194,13 @@ export class JourneysService {
     let completedTasks = 0;
     let totalTasks = 0;
     let completedMilestones = 0;
-    let totalMilestones = journey.milestones.length;
+    const totalMilestones = journey.milestones.length;
 
-    journey.milestones.forEach(m => {
+    journey.milestones.forEach((m) => {
       let mCompletedTasks = 0;
-      let mTotalTasks = m.tasks.length;
-      
-      m.tasks.forEach(t => {
+      const mTotalTasks = m.tasks.length;
+
+      m.tasks.forEach((t) => {
         totalTasks++;
         if (t.status === 'DONE') {
           completedTasks++;
@@ -181,7 +213,8 @@ export class JourneysService {
       }
     });
 
-    const progress = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+    const progress =
+      totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
     return {
       progress,

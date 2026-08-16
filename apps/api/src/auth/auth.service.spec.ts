@@ -28,7 +28,7 @@ describe('AuthService', () => {
               findUnique: jest.fn(),
               update: jest.fn(),
               delete: jest.fn(),
-            }
+            },
           },
         },
         {
@@ -48,10 +48,18 @@ describe('AuthService', () => {
   describe('Registration', () => {
     it('should register a valid user and return a token', async () => {
       jest.spyOn(prismaService.user, 'findFirst').mockResolvedValue(null);
-      jest.spyOn(prismaService.user, 'create').mockResolvedValue({ id: 'uuid' } as any);
-      jest.spyOn(prismaService.session, 'create').mockResolvedValue({ id: 'session-123' } as any);
-      
-      const result = await service.register({ email: 't@t.com', username: 't', password: 'pw' });
+      jest
+        .spyOn(prismaService.user, 'create')
+        .mockResolvedValue({ id: 'uuid' } as any);
+      jest
+        .spyOn(prismaService.session, 'create')
+        .mockResolvedValue({ id: 'session-123' } as any);
+
+      const result = await service.register({
+        email: 't@t.com',
+        username: 't',
+        password: 'pw',
+      });
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
       expect(result.refreshToken).toMatch(/^session-123:[a-f0-9]+$/);
@@ -59,12 +67,20 @@ describe('AuthService', () => {
 
     it('should securely hash password with argon2id and not store plaintext', async () => {
       jest.spyOn(prismaService.user, 'findFirst').mockResolvedValue(null);
-      const createSpy = jest.spyOn(prismaService.user, 'create').mockResolvedValue({ id: 'uuid' } as any);
-      jest.spyOn(prismaService.session, 'create').mockResolvedValue({ id: 'session-123' } as any);
-      
-      await service.register({ email: 't@t.com', username: 't', password: 'plain-password' });
+      const createSpy = jest
+        .spyOn(prismaService.user, 'create')
+        .mockResolvedValue({ id: 'uuid' } as any);
+      jest
+        .spyOn(prismaService.session, 'create')
+        .mockResolvedValue({ id: 'session-123' } as any);
+
+      await service.register({
+        email: 't@t.com',
+        username: 't',
+        password: 'plain-password',
+      });
       const createArgs = createSpy.mock.calls[0][0];
-      
+
       expect(createArgs.data.passwordHash).toBeDefined();
       expect(createArgs.data.passwordHash).not.toBe('plain-password');
       expect((createArgs.data as any).password).toBeUndefined();
@@ -78,9 +94,14 @@ describe('AuthService', () => {
         id: 'uuid',
         passwordHash: hash,
       } as any);
-      jest.spyOn(prismaService.session, 'create').mockResolvedValue({ id: 'session-123' } as any);
+      jest
+        .spyOn(prismaService.session, 'create')
+        .mockResolvedValue({ id: 'session-123' } as any);
 
-      const result = await service.login({ identity: 'test', password: 'correct-pw' });
+      const result = await service.login({
+        identity: 'test',
+        password: 'correct-pw',
+      });
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
       expect(result.refreshToken).toMatch(/^session-123:[a-f0-9]+$/);
@@ -93,8 +114,9 @@ describe('AuthService', () => {
         passwordHash: hash,
       } as any);
 
-      await expect(service.login({ identity: 'test', password: 'wrong-pw' }))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.login({ identity: 'test', password: 'wrong-pw' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -123,7 +145,7 @@ describe('AuthService', () => {
     it('should fail if session expired', async () => {
       const sessionId = 'session1';
       const tokenValue = 'random-bytes-value';
-      
+
       jest.spyOn(prismaService.session, 'findUnique').mockResolvedValue({
         id: sessionId,
         userId: 'uuid',
@@ -131,8 +153,9 @@ describe('AuthService', () => {
         expiresAt: new Date(Date.now() - 100000), // past
       } as any);
 
-      await expect(service.refresh(`${sessionId}:${tokenValue}`))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.refresh(`${sessionId}:${tokenValue}`),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

@@ -34,15 +34,20 @@ export class GitHubClientAdapter {
    */
   parseAndSanitizeGitHubUrl(url: string): { owner: string; repo: string } {
     if (!url || typeof url !== 'string') {
-      throw new BadRequestException('Repository URL must be a valid non-empty string.');
+      throw new BadRequestException(
+        'Repository URL must be a valid non-empty string.',
+      );
     }
 
     const trimmed = url.trim();
-    const regex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)\/?$/;
+    const regex =
+      /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)\/?$/;
     const match = trimmed.match(regex);
 
     if (!match) {
-      throw new BadRequestException('Invalid GitHub repository URL. Must be in the form https://github.com/owner/repo');
+      throw new BadRequestException(
+        'Invalid GitHub repository URL. Must be in the form https://github.com/owner/repo',
+      );
     }
 
     const owner = match[1];
@@ -57,7 +62,9 @@ export class GitHubClientAdapter {
   /**
    * Fetch Repositories belonging to Connected Authenticated User (Requirement I - Passive Discovery)
    */
-  async fetchUserRepositories(accessToken: string): Promise<GitHubRepoMetadata[]> {
+  async fetchUserRepositories(
+    accessToken: string,
+  ): Promise<GitHubRepoMetadata[]> {
     const endpoint = `https://api.github.com/user/repos?sort=updated&per_page=30`;
     const headers: Record<string, string> = {
       'User-Agent': 'DevOS-Agent/1.0',
@@ -73,7 +80,7 @@ export class GitHubClientAdapter {
       const data: any[] = await response.json();
       if (!Array.isArray(data)) return [];
 
-      return data.map(item => ({
+      return data.map((item) => ({
         owner: item.owner?.login || 'unknown',
         name: item.name,
         fullName: item.full_name || `${item.owner?.login}/${item.name}`,
@@ -92,7 +99,11 @@ export class GitHubClientAdapter {
   /**
    * Fetch Repository Metadata via GitHub REST API
    */
-  async fetchRepoMetadata(owner: string, repo: string, accessToken?: string): Promise<GitHubRepoMetadata> {
+  async fetchRepoMetadata(
+    owner: string,
+    repo: string,
+    accessToken?: string,
+  ): Promise<GitHubRepoMetadata> {
     const endpoint = `https://api.github.com/repos/${owner}/${repo}`;
     const headers: Record<string, string> = {
       'User-Agent': 'DevOS-Agent/1.0',
@@ -107,12 +118,18 @@ export class GitHubClientAdapter {
       const response = await fetch(endpoint, { headers });
       if (!response.ok) {
         if (response.status === 404) {
-          throw new BadRequestException(`GitHub repository ${owner}/${repo} not found or inaccessible.`);
+          throw new BadRequestException(
+            `GitHub repository ${owner}/${repo} not found or inaccessible.`,
+          );
         }
         if (response.status === 403) {
-          throw new BadRequestException(`GitHub API rate limit exceeded or access forbidden for ${owner}/${repo}.`);
+          throw new BadRequestException(
+            `GitHub API rate limit exceeded or access forbidden for ${owner}/${repo}.`,
+          );
         }
-        throw new BadRequestException(`GitHub API request failed with status ${response.status}`);
+        throw new BadRequestException(
+          `GitHub API request failed with status ${response.status}`,
+        );
       }
 
       const data: any = await response.json();
@@ -146,7 +163,12 @@ export class GitHubClientAdapter {
   /**
    * Fetch Latest/Specific Commit Metadata via GitHub REST API
    */
-  async fetchCommitMetadata(owner: string, repo: string, sha?: string, accessToken?: string): Promise<GitHubCommitMetadata> {
+  async fetchCommitMetadata(
+    owner: string,
+    repo: string,
+    sha?: string,
+    accessToken?: string,
+  ): Promise<GitHubCommitMetadata> {
     const commitRef = sha || 'HEAD';
     const endpoint = `https://api.github.com/repos/${owner}/${repo}/commits/${commitRef}`;
     const headers: Record<string, string> = {
@@ -173,7 +195,8 @@ export class GitHubClientAdapter {
       const data: any = await response.json();
       return {
         sha: data.sha || sha || 'simulated-commit-sha-1234567890',
-        authorName: data.commit?.author?.name || data.author?.login || undefined,
+        authorName:
+          data.commit?.author?.name || data.author?.login || undefined,
         authorEmail: data.commit?.author?.email || undefined,
         authorGitHubId: data.author?.id ? String(data.author.id) : undefined,
         authorGitHubLogin: data.author?.login || undefined,
@@ -194,7 +217,11 @@ export class GitHubClientAdapter {
   /**
    * Fetch Manifest File Contents statically (Deterministic Selection Order, Max 5 files per repo, Max 1MB per file)
    */
-  async fetchManifestContents(owner: string, repo: string, accessToken?: string): Promise<ManifestFileContent[]> {
+  async fetchManifestContents(
+    owner: string,
+    repo: string,
+    accessToken?: string,
+  ): Promise<ManifestFileContent[]> {
     // Deterministic selection order as specified in Audit Section 6
     const targetManifests = [
       'package.json',

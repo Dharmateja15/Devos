@@ -1,7 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RoadmapReconciliationService } from './roadmap-reconciliation.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MappingStatus, TaskStatus, ProjectStatus, LearnerState, RoadmapSourceType, RoadmapNodeType } from '@prisma/client';
+import {
+  MappingStatus,
+  TaskStatus,
+  ProjectStatus,
+  LearnerState,
+  RoadmapSourceType,
+  RoadmapNodeType,
+} from '@prisma/client';
 
 describe('RoadmapReconciliationService', () => {
   let service: RoadmapReconciliationService;
@@ -61,7 +68,11 @@ describe('RoadmapReconciliationService', () => {
       skill: { findMany: jest.fn().mockResolvedValue([]) },
       evidenceItem: { findMany: jest.fn().mockResolvedValue([]) },
       learnerConceptState: { findMany: jest.fn().mockResolvedValue([]) },
-      roadmapMapping: { update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...data })) },
+      roadmapMapping: {
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...data })),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -71,42 +82,63 @@ describe('RoadmapReconciliationService', () => {
       ],
     }).compile();
 
-    service = module.get<RoadmapReconciliationService>(RoadmapReconciliationService);
+    service = module.get<RoadmapReconciliationService>(
+      RoadmapReconciliationService,
+    );
   });
 
   it('1. Exact existing task match yields COMPLETED status', async () => {
     prismaService.task.findMany.mockResolvedValue([
-      { id: 't1', title: 'Python Basics', status: TaskStatus.DONE, journeyId: 'j1' },
+      {
+        id: 't1',
+        title: 'Python Basics',
+        status: TaskStatus.DONE,
+        journeyId: 'j1',
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
     expect(node1Result.mappingStatus).toBe(MappingStatus.COMPLETED);
     expect(node1Result.confidenceScore).toBeGreaterThanOrEqual(0.45);
-    expect(node1Result.signals.some(s => s.code === 'EXACT_COMPLETED_TASK_MATCH')).toBe(true);
+    expect(
+      node1Result.signals.some((s) => s.code === 'EXACT_COMPLETED_TASK_MATCH'),
+    ).toBe(true);
   });
 
   it('2. Existing project match yields COMPLETED status', async () => {
     prismaService.project.findMany.mockResolvedValue([
-      { id: 'p1', title: 'Docker Containers', status: ProjectStatus.COMPLETED, techStack: ['Docker'], journeyId: 'j1' },
+      {
+        id: 'p1',
+        title: 'Docker Containers',
+        status: ProjectStatus.COMPLETED,
+        techStack: ['Docker'],
+        journeyId: 'j1',
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node2Result = results.find(r => r.nodeId === 'node-2')!;
+    const node2Result = results.find((r) => r.nodeId === 'node-2')!;
 
     expect(node2Result.mappingStatus).toBe(MappingStatus.COMPLETED);
-    expect(node2Result.signals.some(s => s.code === 'COMPLETED_PROJECT_MATCH')).toBe(true);
+    expect(
+      node2Result.signals.some((s) => s.code === 'COMPLETED_PROJECT_MATCH'),
+    ).toBe(true);
   });
 
   it('3. Existing skill match without task/evidence yields KNOWN_UNVERIFIED or PARTIAL_MATCH', async () => {
-    prismaService.skill.findMany.mockResolvedValue([{ id: 's1', name: 'Python Basics' }]);
+    prismaService.skill.findMany.mockResolvedValue([
+      { id: 's1', name: 'Python Basics' },
+    ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
     expect(node1Result.mappingStatus).toBe(MappingStatus.PARTIAL_MATCH);
-    expect(node1Result.signals.some(s => s.code === 'SKILL_CATALOG_MATCH')).toBe(true);
+    expect(
+      node1Result.signals.some((s) => s.code === 'SKILL_CATALOG_MATCH'),
+    ).toBe(true);
   });
 
   it('4. Existing verified evidence match boosts confidence score', async () => {
@@ -114,14 +146,22 @@ describe('RoadmapReconciliationService', () => {
       { id: 'e1', title: 'Python Basics', verified: true },
     ]);
     prismaService.learnerConceptState.findMany.mockResolvedValue([
-      { conceptId: 'c1', concept: { title: 'Python Basics' }, state: LearnerState.MASTERED },
+      {
+        conceptId: 'c1',
+        concept: { title: 'Python Basics' },
+        state: LearnerState.MASTERED,
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
-    expect(node1Result.signals.some(s => s.code === 'VERIFIED_EVIDENCE_MATCH')).toBe(true);
-    expect(node1Result.signals.some(s => s.code === 'CONCEPT_MASTERED')).toBe(true);
+    expect(
+      node1Result.signals.some((s) => s.code === 'VERIFIED_EVIDENCE_MATCH'),
+    ).toBe(true);
+    expect(node1Result.signals.some((s) => s.code === 'CONCEPT_MASTERED')).toBe(
+      true,
+    );
   });
 
   it('5. Known but unverified (Self-Reported Concept + Unverified Evidence)', async () => {
@@ -129,43 +169,72 @@ describe('RoadmapReconciliationService', () => {
       { id: 'e1', title: 'Python Basics', verified: false },
     ]);
     prismaService.learnerConceptState.findMany.mockResolvedValue([
-      { conceptId: 'c1', concept: { title: 'Python Basics' }, state: LearnerState.SELF_REPORTED },
+      {
+        conceptId: 'c1',
+        concept: { title: 'Python Basics' },
+        state: LearnerState.SELF_REPORTED,
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
     expect(node1Result.mappingStatus).toBe(MappingStatus.PARTIAL_MATCH);
-    expect(node1Result.signals.some(s => s.code === 'CONCEPT_SELF_REPORTED')).toBe(true);
+    expect(
+      node1Result.signals.some((s) => s.code === 'CONCEPT_SELF_REPORTED'),
+    ).toBe(true);
   });
 
   it('6. Partial match for topic overlap', async () => {
     prismaService.task.findMany.mockResolvedValue([
-      { id: 't1', title: 'Intro to Python', status: TaskStatus.DONE, journeyId: 'j1' },
+      {
+        id: 't1',
+        title: 'Intro to Python',
+        status: TaskStatus.DONE,
+        journeyId: 'j1',
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
-    expect(node1Result.signals.some(s => s.code === 'PARTIAL_COMPLETED_TASK_MATCH')).toBe(true);
+    expect(
+      node1Result.signals.some(
+        (s) => s.code === 'PARTIAL_COMPLETED_TASK_MATCH',
+      ),
+    ).toBe(true);
   });
 
   it('7. Ambiguous match when multiple tasks partially match with low confidence', async () => {
     prismaService.task.findMany.mockResolvedValue([
-      { id: 't1', title: 'Python Basics Part 1', status: TaskStatus.DONE, journeyId: 'j1' },
-      { id: 't2', title: 'Python Basics Part 2', status: TaskStatus.DONE, journeyId: 'j1' },
+      {
+        id: 't1',
+        title: 'Python Basics Part 1',
+        status: TaskStatus.DONE,
+        journeyId: 'j1',
+      },
+      {
+        id: 't2',
+        title: 'Python Basics Part 2',
+        status: TaskStatus.DONE,
+        journeyId: 'j1',
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
-    expect(node1Result.signals.some(s => s.code === 'MULTIPLE_CANDIDATES_AMBIGUOUS')).toBe(true);
+    expect(
+      node1Result.signals.some(
+        (s) => s.code === 'MULTIPLE_CANDIDATES_AMBIGUOUS',
+      ),
+    ).toBe(true);
     expect(node1Result.mappingStatus).toBe(MappingStatus.AMBIGUOUS);
   });
 
   it('8. New node when no learner state matches', async () => {
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
     expect(node1Result.mappingStatus).toBe(MappingStatus.NEW);
     expect(node1Result.confidenceScore).toBe(0.0);
@@ -250,18 +319,30 @@ describe('RoadmapReconciliationService', () => {
 
   it('15 & 16. Cross-roadmap evidence reuse via shared learner state', async () => {
     prismaService.evidenceItem.findMany.mockResolvedValue([
-      { id: 'ev-from-journey-a', title: 'Python Basics', verified: true, userId: 'user-1' },
+      {
+        id: 'ev-from-journey-a',
+        title: 'Python Basics',
+        verified: true,
+        userId: 'user-1',
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
-    const node1Result = results.find(r => r.nodeId === 'node-1')!;
+    const node1Result = results.find((r) => r.nodeId === 'node-1')!;
 
-    expect(node1Result.signals.some(s => s.code === 'VERIFIED_EVIDENCE_MATCH')).toBe(true);
+    expect(
+      node1Result.signals.some((s) => s.code === 'VERIFIED_EVIDENCE_MATCH'),
+    ).toBe(true);
   });
 
   it('17. Reason codes and explainable matching reason format', async () => {
     prismaService.task.findMany.mockResolvedValue([
-      { id: 't1', title: 'Python Basics', status: TaskStatus.DONE, journeyId: 'j1' },
+      {
+        id: 't1',
+        title: 'Python Basics',
+        status: TaskStatus.DONE,
+        journeyId: 'j1',
+      },
     ]);
 
     const results = await service.reconcileSnapshot('user-1', 'snap-1');
@@ -271,7 +352,12 @@ describe('RoadmapReconciliationService', () => {
 
   it('18. Deterministic repeated reconciliation yields identical scores and signals', async () => {
     prismaService.task.findMany.mockResolvedValue([
-      { id: 't1', title: 'Python Basics', status: TaskStatus.DONE, journeyId: 'j1' },
+      {
+        id: 't1',
+        title: 'Python Basics',
+        status: TaskStatus.DONE,
+        journeyId: 'j1',
+      },
     ]);
 
     const run1 = await service.reconcileSnapshot('user-1', 'snap-1');

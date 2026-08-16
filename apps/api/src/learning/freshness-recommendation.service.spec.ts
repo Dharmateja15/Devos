@@ -22,7 +22,11 @@ describe('FreshnessRecommendationService (Sub-Block 6C - Requirement O)', () => 
     snapshots: [
       {
         id: 'snap-1',
-        nodes: [mockNodeMasteredStale, mockNodeMasteredFresh, mockNodeSelfReported],
+        nodes: [
+          mockNodeMasteredStale,
+          mockNodeMasteredFresh,
+          mockNodeSelfReported,
+        ],
       },
     ],
   };
@@ -32,7 +36,12 @@ describe('FreshnessRecommendationService (Sub-Block 6C - Requirement O)', () => 
       roadmap: {
         findUnique: jest.fn().mockImplementation(({ where }: any) => {
           if (where.id === 'rm-1') return Promise.resolve(mockRoadmap);
-          if (where.id === 'rm-other') return Promise.resolve({ ...mockRoadmap, id: 'rm-other', userId: 'user-other' });
+          if (where.id === 'rm-other')
+            return Promise.resolve({
+              ...mockRoadmap,
+              id: 'rm-other',
+              userId: 'user-other',
+            });
           return Promise.resolve(null);
         }),
       },
@@ -43,7 +52,12 @@ describe('FreshnessRecommendationService (Sub-Block 6C - Requirement O)', () => 
       getCapabilityFreshness: jest.fn().mockResolvedValue({
         userId: 'user-1',
         evaluatedAt: new Date(),
-        summary: { freshCount: 1, agingCount: 0, staleCount: 1, unknownCount: 1 },
+        summary: {
+          freshCount: 1,
+          agingCount: 0,
+          staleCount: 1,
+          unknownCount: 1,
+        },
         freshnessList: [
           {
             capabilityTitle: 'Python',
@@ -74,30 +88,44 @@ describe('FreshnessRecommendationService (Sub-Block 6C - Requirement O)', () => 
       ],
     }).compile();
 
-    service = module.get<FreshnessRecommendationService>(FreshnessRecommendationService);
+    service = module.get<FreshnessRecommendationService>(
+      FreshnessRecommendationService,
+    );
   });
 
   describe('Recommendation Rules & Autonomy', () => {
     it('1. Maps MASTERED + STALE -> REVIEW, MASTERED + FRESH -> PROGRESSION, SELF_REPORTED -> PRACTICE', async () => {
-      const res = await service.getRoadmapFreshnessRecommendations('user-1', 'rm-1');
+      const res = await service.getRoadmapFreshnessRecommendations(
+        'user-1',
+        'rm-1',
+      );
 
       expect(res.totalRecommendations).toBe(3);
 
-      const pythonRec = res.recommendations.find(r => r.conceptTitle === 'Python');
+      const pythonRec = res.recommendations.find(
+        (r) => r.conceptTitle === 'Python',
+      );
       expect(pythonRec?.recommendationType).toBe('REVIEW');
       expect(pythonRec?.isBlocked).toBe(false);
 
-      const tsRec = res.recommendations.find(r => r.conceptTitle === 'TypeScript');
+      const tsRec = res.recommendations.find(
+        (r) => r.conceptTitle === 'TypeScript',
+      );
       expect(tsRec?.recommendationType).toBe('PROGRESSION');
       expect(tsRec?.isBlocked).toBe(false);
 
-      const dockerRec = res.recommendations.find(r => r.conceptTitle === 'Docker');
+      const dockerRec = res.recommendations.find(
+        (r) => r.conceptTitle === 'Docker',
+      );
       expect(dockerRec?.recommendationType).toBe('PRACTICE');
       expect(dockerRec?.isBlocked).toBe(false);
     });
 
     it('2. Invariant Check: isBlocked is ALWAYS false for every recommendation', async () => {
-      const res = await service.getRoadmapFreshnessRecommendations('user-1', 'rm-1');
+      const res = await service.getRoadmapFreshnessRecommendations(
+        'user-1',
+        'rm-1',
+      );
 
       for (const rec of res.recommendations) {
         expect(rec.isBlocked).toBe(false);
@@ -114,9 +142,14 @@ describe('FreshnessRecommendationService (Sub-Block 6C - Requirement O)', () => 
         },
       ]);
 
-      const res = await service.getRoadmapFreshnessRecommendations('user-1', 'rm-1');
+      const res = await service.getRoadmapFreshnessRecommendations(
+        'user-1',
+        'rm-1',
+      );
 
-      expect(res.recommendations.find(r => r.conceptTitle === 'Python')).toBeUndefined();
+      expect(
+        res.recommendations.find((r) => r.conceptTitle === 'Python'),
+      ).toBeUndefined();
     });
 
     it('4. Excludes skipped concepts (userIntent === SKIP)', async () => {
@@ -128,14 +161,19 @@ describe('FreshnessRecommendationService (Sub-Block 6C - Requirement O)', () => 
         },
       ]);
 
-      const res = await service.getRoadmapFreshnessRecommendations('user-1', 'rm-1');
+      const res = await service.getRoadmapFreshnessRecommendations(
+        'user-1',
+        'rm-1',
+      );
 
-      expect(res.recommendations.find(r => r.conceptTitle === 'Python')).toBeUndefined();
+      expect(
+        res.recommendations.find((r) => r.conceptTitle === 'Python'),
+      ).toBeUndefined();
     });
 
     it('5. Rejects unauthorized roadmap access with ForbiddenException', async () => {
       await expect(
-        service.getRoadmapFreshnessRecommendations('user-1', 'rm-other')
+        service.getRoadmapFreshnessRecommendations('user-1', 'rm-other'),
       ).rejects.toThrow(ForbiddenException);
     });
   });

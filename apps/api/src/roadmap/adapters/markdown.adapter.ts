@@ -10,8 +10,11 @@ export class MarkdownAdapter implements RoadmapSourceAdapter {
   }
 
   async normalize(input: string): Promise<NormalizedRoadmap> {
-    const lines = input.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    
+    const lines = input
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
     if (lines.length === 0) {
       throw new BadRequestException('Empty Markdown data');
     }
@@ -33,7 +36,7 @@ export class MarkdownAdapter implements RoadmapSourceAdapter {
           sortOrder: i,
           dependencies: [],
           resourceUrls: [],
-          metadata: {}
+          metadata: {},
         });
         currentParentId = id;
       } else if (line.startsWith('- ')) {
@@ -45,7 +48,7 @@ export class MarkdownAdapter implements RoadmapSourceAdapter {
           sortOrder: i,
           dependencies: currentParentId ? [currentParentId] : [],
           resourceUrls: [],
-          metadata: {}
+          metadata: {},
         });
       }
     }
@@ -54,7 +57,7 @@ export class MarkdownAdapter implements RoadmapSourceAdapter {
       sourceName: title,
       sourceType: RoadmapSourceType.MARKDOWN,
       nodes,
-      metadata: { format: 'markdown-list' }
+      metadata: { format: 'markdown-list' },
     };
   }
 }

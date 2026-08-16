@@ -1,7 +1,20 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MappingStatus, RoadmapPriority, RoadmapStatus, LearnerState } from '@prisma/client';
-import { GoalChangeImpactRequestDto, DecomposeNodeRequestDto, DismissDecompositionRequestDto } from './dto/roadmap-intelligence.dto';
+import {
+  MappingStatus,
+  RoadmapPriority,
+  RoadmapStatus,
+  LearnerState,
+} from '@prisma/client';
+import {
+  GoalChangeImpactRequestDto,
+  DecomposeNodeRequestDto,
+  DismissDecompositionRequestDto,
+} from './dto/roadmap-intelligence.dto';
 
 @Injectable()
 export class RoadmapIntelligenceService {
@@ -10,7 +23,11 @@ export class RoadmapIntelligenceService {
   /**
    * Requirement E: Goal Change Impact Analysis (Read-Only)
    */
-  async analyzeGoalChangeImpact(userId: string, roadmapId: string, dto: GoalChangeImpactRequestDto) {
+  async analyzeGoalChangeImpact(
+    userId: string,
+    roadmapId: string,
+    dto: GoalChangeImpactRequestDto,
+  ) {
     const roadmap = await this.prisma.roadmap.findUnique({
       where: { id: roadmapId },
       include: {
@@ -33,7 +50,9 @@ export class RoadmapIntelligenceService {
     }
 
     if (roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to analyze this roadmap.');
+      throw new ForbiddenException(
+        'You do not have permission to analyze this roadmap.',
+      );
     }
 
     const activeSnapshot = roadmap.snapshots[0];
@@ -44,7 +63,7 @@ export class RoadmapIntelligenceService {
 
     // Collect active materialized tasks linked via roadmap mappings
     const mappingTaskIds = nodes
-      .map(n => n.mappings[0]?.taskId)
+      .map((n) => n.mappings[0]?.taskId)
       .filter((id): id is string => Boolean(id));
 
     const activeTasks = await this.prisma.task.findMany({
@@ -59,18 +78,28 @@ export class RoadmapIntelligenceService {
 
     // Classify tasks: "NO LONGER PRIORITY" vs "RETAINED USEFUL"
     const isDowngradingPriority =
-      (roadmap.priority === RoadmapPriority.PRIMARY && targetPriority !== RoadmapPriority.PRIMARY) ||
+      (roadmap.priority === RoadmapPriority.PRIMARY &&
+        targetPriority !== RoadmapPriority.PRIMARY) ||
       targetStatus === RoadmapStatus.PAUSED;
 
-    const retainedUsefulTasks: { taskId: string; title: string; reason: string }[] = [];
-    const deprioritizedTasks: { taskId: string; title: string; newFocusScore: number }[] = [];
+    const retainedUsefulTasks: {
+      taskId: string;
+      title: string;
+      reason: string;
+    }[] = [];
+    const deprioritizedTasks: {
+      taskId: string;
+      title: string;
+      newFocusScore: number;
+    }[] = [];
 
     for (const task of activeTasks) {
       if (isDowngradingPriority) {
         deprioritizedTasks.push({
           taskId: task.id,
           title: task.title,
-          newFocusScore: targetPriority === RoadmapPriority.SECONDARY ? 0.6 : 0.3,
+          newFocusScore:
+            targetPriority === RoadmapPriority.SECONDARY ? 0.6 : 0.3,
         });
         retainedUsefulTasks.push({
           taskId: task.id,
@@ -88,9 +117,9 @@ export class RoadmapIntelligenceService {
 
     // Find prerequisite nodes affected
     const prerequisitesAffected = nodes
-      .filter(n => n.dependencies && n.dependencies.length > 0)
+      .filter((n) => n.dependencies && n.dependencies.length > 0)
       .slice(0, 3)
-      .map(n => ({
+      .map((n) => ({
         nodeId: n.id,
         nodeTitle: n.title,
         impactDescription: `Prerequisite structure for "${n.title}" will adapt focus order to match ${targetPriority} priority.`,
@@ -121,7 +150,11 @@ export class RoadmapIntelligenceService {
   /**
    * Requirement F: Complementary Cross-Roadmap Learning (Read-Only)
    */
-  async getComplementaryContext(userId: string, roadmapId: string, nodeId?: string) {
+  async getComplementaryContext(
+    userId: string,
+    roadmapId: string,
+    nodeId?: string,
+  ) {
     const targetRoadmap = await this.prisma.roadmap.findUnique({
       where: { id: roadmapId },
       include: {
@@ -144,16 +177,20 @@ export class RoadmapIntelligenceService {
     }
 
     if (targetRoadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to view complementary context for this roadmap.');
+      throw new ForbiddenException(
+        'You do not have permission to view complementary context for this roadmap.',
+      );
     }
 
     const activeSnapshot = targetRoadmap.snapshots[0];
     let nodes = activeSnapshot?.nodes || [];
 
     if (nodeId) {
-      nodes = nodes.filter(n => n.id === nodeId);
+      nodes = nodes.filter((n) => n.id === nodeId);
       if (nodes.length === 0) {
-        throw new NotFoundException(`RoadmapNode with ID ${nodeId} not found on this roadmap.`);
+        throw new NotFoundException(
+          `RoadmapNode with ID ${nodeId} not found on this roadmap.`,
+        );
       }
     }
 
@@ -199,8 +236,10 @@ export class RoadmapIntelligenceService {
       let matchedState: LearnerState = LearnerState.UNKNOWN;
       let matchedTitle = node.title;
 
-      const directConcept = conceptStates.find(cs =>
-        cs.concept.title.toLowerCase().includes(nodeTitleLower) || nodeTitleLower.includes(cs.concept.title.toLowerCase())
+      const directConcept = conceptStates.find(
+        (cs) =>
+          cs.concept.title.toLowerCase().includes(nodeTitleLower) ||
+          nodeTitleLower.includes(cs.concept.title.toLowerCase()),
       );
 
       if (directConcept) {
@@ -209,16 +248,24 @@ export class RoadmapIntelligenceService {
       } else {
         // Search other roadmaps for completed/known nodes with same concept
         for (const other of otherRoadmaps) {
-          const otherNode = other.snapshots[0]?.nodes.find(n =>
-            n.title.toLowerCase().includes(nodeTitleLower) || nodeTitleLower.includes(n.title.toLowerCase())
+          const otherNode = other.snapshots[0]?.nodes.find(
+            (n) =>
+              n.title.toLowerCase().includes(nodeTitleLower) ||
+              nodeTitleLower.includes(n.title.toLowerCase()),
           );
           if (otherNode) {
             const status = otherNode.mappings[0]?.mappingStatus;
-            if (status === MappingStatus.COMPLETED || status === MappingStatus.USER_CONFIRMED) {
+            if (
+              status === MappingStatus.COMPLETED ||
+              status === MappingStatus.USER_CONFIRMED
+            ) {
               matchedState = LearnerState.MASTERED;
               matchedTitle = otherNode.title;
               break;
-            } else if (status === MappingStatus.KNOWN_UNVERIFIED || status === MappingStatus.PARTIAL_MATCH) {
+            } else if (
+              status === MappingStatus.KNOWN_UNVERIFIED ||
+              status === MappingStatus.PARTIAL_MATCH
+            ) {
               matchedState = LearnerState.SELF_REPORTED;
               matchedTitle = otherNode.title;
             }
@@ -226,7 +273,10 @@ export class RoadmapIntelligenceService {
         }
       }
 
-      if (matchedState === LearnerState.MASTERED || matchedState === LearnerState.ASSESSED) {
+      if (
+        matchedState === LearnerState.MASTERED ||
+        matchedState === LearnerState.ASSESSED
+      ) {
         complementaryNodes.push({
           nodeId: node.id,
           nodeTitle: node.title,
@@ -236,7 +286,10 @@ export class RoadmapIntelligenceService {
           suggestedTaskDescription: `Reuses existing ${matchedTitle} capability. Focuses directly on ${targetRoadmap.title} domain implementation rather than repeating generic fundamentals.`,
           whyReason: `Existing ${matchedTitle} capability is strong enough (${matchedState}) to skip generic fundamentals and move to ${targetRoadmap.title} contextual application.`,
         });
-      } else if (matchedState === LearnerState.SELF_REPORTED || matchedState === LearnerState.NEEDS_REVIEW) {
+      } else if (
+        matchedState === LearnerState.SELF_REPORTED ||
+        matchedState === LearnerState.NEEDS_REVIEW
+      ) {
         complementaryNodes.push({
           nodeId: node.id,
           nodeTitle: node.title,
@@ -268,7 +321,11 @@ export class RoadmapIntelligenceService {
   /**
    * Requirement N: Partial Knowledge Decomposition
    */
-  async decomposeNode(userId: string, nodeId: string, dto: DecomposeNodeRequestDto) {
+  async decomposeNode(
+    userId: string,
+    nodeId: string,
+    dto: DecomposeNodeRequestDto,
+  ) {
     const node = await this.prisma.roadmapNode.findUnique({
       where: { id: nodeId },
       include: {
@@ -286,7 +343,9 @@ export class RoadmapIntelligenceService {
     }
 
     if (node.snapshot.roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to decompose this node.');
+      throw new ForbiddenException(
+        'You do not have permission to decompose this node.',
+      );
     }
 
     let mapping = node.mappings[0];
@@ -304,20 +363,30 @@ export class RoadmapIntelligenceService {
     const currentMetadata = (node.metadata as Record<string, any>) || {};
 
     // Idempotency Check: Return existing active decomposition unless forceDecomposition is requested
-    if (currentMetadata.type === 'PARTIAL_DECOMPOSITION' && !currentMetadata.dismissed && !dto.forceDecomposition) {
+    if (
+      currentMetadata.type === 'PARTIAL_DECOMPOSITION' &&
+      !currentMetadata.dismissed &&
+      !dto.forceDecomposition
+    ) {
       return {
         nodeId: node.id,
         roadmapMappingId: mapping.id,
         isDecomposed: true,
         subItems: currentMetadata.subItems || [],
-        whyReason: currentMetadata.whyReason || 'Existing decomposition returned (idempotent).',
+        whyReason:
+          currentMetadata.whyReason ||
+          'Existing decomposition returned (idempotent).',
       };
     }
 
     // Learner state evaluation
     const isCompleted = mapping.mappingStatus === MappingStatus.COMPLETED;
-    const isAssessed = mapping.mappingStatus === MappingStatus.IN_PROGRESS && mapping.confidenceScore >= 0.75;
-    const isUnknown = mapping.mappingStatus === MappingStatus.NEW && mapping.confidenceScore < 0.2;
+    const isAssessed =
+      mapping.mappingStatus === MappingStatus.IN_PROGRESS &&
+      mapping.confidenceScore >= 0.75;
+    const isUnknown =
+      mapping.mappingStatus === MappingStatus.NEW &&
+      mapping.confidenceScore < 0.2;
 
     if (isCompleted && !dto.forceDecomposition) {
       return {
@@ -408,7 +477,11 @@ export class RoadmapIntelligenceService {
   /**
    * Requirement N (User Dismissal): Dismiss Partial Knowledge Decomposition
    */
-  async dismissDecomposition(userId: string, nodeId: string, dto: DismissDecompositionRequestDto) {
+  async dismissDecomposition(
+    userId: string,
+    nodeId: string,
+    dto: DismissDecompositionRequestDto,
+  ) {
     const node = await this.prisma.roadmapNode.findUnique({
       where: { id: nodeId },
       include: {
@@ -426,12 +499,16 @@ export class RoadmapIntelligenceService {
     }
 
     if (node.snapshot.roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to dismiss decomposition for this node.');
+      throw new ForbiddenException(
+        'You do not have permission to dismiss decomposition for this node.',
+      );
     }
 
     const mapping = node.mappings[0];
     if (!mapping) {
-      throw new NotFoundException(`RoadmapMapping for node ${nodeId} not found.`);
+      throw new NotFoundException(
+        `RoadmapMapping for node ${nodeId} not found.`,
+      );
     }
 
     const currentMetadata = (node.metadata as Record<string, any>) || {};
@@ -445,7 +522,9 @@ export class RoadmapIntelligenceService {
       dismissed: true,
       dismissedAt: new Date().toISOString(),
       reason: dto.reason || 'User dismissed partial decomposition.',
-      previousDecomposition: currentMetadata.subItems ? { subItems: currentMetadata.subItems } : undefined,
+      previousDecomposition: currentMetadata.subItems
+        ? { subItems: currentMetadata.subItems }
+        : undefined,
     };
 
     await this.prisma.roadmapNode.update({

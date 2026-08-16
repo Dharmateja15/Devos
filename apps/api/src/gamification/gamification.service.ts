@@ -69,30 +69,32 @@ export class GamificationService {
    * Processes a streak increment for the user.
    * Ensures maximum 1 streak increment per calendar day (UTC by default, or could use user timezone).
    */
-  async processStreak(
-    ctx: GamificationContext,
-    date: Date,
-  ): Promise<number> {
+  async processStreak(ctx: GamificationContext, date: Date): Promise<number> {
     const { userId, journeyId, prismaTx } = ctx;
-    
+
     // Fetch user to get timezone
-    const user = await prismaTx.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    const user = await prismaTx.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
     const timezone = user?.timezone || 'UTC';
 
     // Get local date string in user's timezone
-    const formatter = new Intl.DateTimeFormat('en-CA', { 
-      timeZone: timezone, 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit' 
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
     const parts = formatter.formatToParts(date);
-    const year = parts.find(p => p.type === 'year')!.value;
-    const month = parts.find(p => p.type === 'month')!.value;
-    const day = parts.find(p => p.type === 'day')!.value;
+    const year = parts.find((p) => p.type === 'year')!.value;
+    const month = parts.find((p) => p.type === 'month')!.value;
+    const day = parts.find((p) => p.type === 'day')!.value;
 
     // Normalize date to start of day based on user's local day
-    const normalizedDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    const normalizedDate = new Date(
+      Date.UTC(Number(year), Number(month) - 1, Number(day)),
+    );
 
     // Try to record history; if it fails due to unique constraint, we already processed today
     const existingHistory = await prismaTx.streakHistory.findUnique({
@@ -106,7 +108,9 @@ export class GamificationService {
 
     if (existingHistory) {
       // Already recorded activity for this day, streak does not inflate.
-      const existingStreak = await prismaTx.streak.findFirst({ where: { userId } });
+      const existingStreak = await prismaTx.streak.findFirst({
+        where: { userId },
+      });
       return existingStreak?.currentStreak || 0;
     }
 
@@ -139,7 +143,8 @@ export class GamificationService {
 
     if (streak.lastActivityDate) {
       const msPerDay = 1000 * 60 * 60 * 24;
-      const diffMs = normalizedDate.getTime() - streak.lastActivityDate.getTime();
+      const diffMs =
+        normalizedDate.getTime() - streak.lastActivityDate.getTime();
       const diffDays = Math.round(diffMs / msPerDay);
 
       if (diffDays === 1) {
@@ -166,5 +171,59 @@ export class GamificationService {
     });
 
     return newCurrent;
+  }
+
+  /**
+   * Retrieves authenticated user's XP summary and historical XP ledger entries.
+   */
+  async getXpSummary(userId: string) {
+    const lastEntry = await this.prisma.xpLedger.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalXp = lastEntry?.balanceAfter || 0;
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const weeklyEntries = await this.prisma.xpLedger.aggregate({
+      _sum: { xpDelta: true },
+      where: {
+        userId,
+        createdAt: { gte: sevenDaysAgo },
+      },
+    });
+
+    const monthlyEntries = await this.prisma.xpLedger.aggregate({
+      _sum: { xpDelta: true },
+      where: {
+        userId,
+        createdAt: { gte: thirtyDaysAgo },
+      },
+    });
+
+    const recentEntries = await this.prisma.xpLedger.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        sourceType: true,
+        sourceId: true,
+        xpDelta: true,
+        balanceAfter: true,
+        note: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      totalXp,
+      weeklyXp: weeklyEntries._sum.xpDelta || 0,
+      monthlyXp: monthlyEntries._sum.xpDelta || 0,
+      recentEntries,
+    };
   }
 }

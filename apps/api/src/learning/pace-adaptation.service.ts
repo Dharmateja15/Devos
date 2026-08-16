@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskStatus } from '@prisma/client';
 
@@ -39,26 +43,35 @@ export class PaceAdaptationService {
     });
 
     // 14-day evaluation task window (tasks created in last 14 days)
-    const windowTasks = allUserTasks.filter(t => t.createdAt >= fourteenDaysAgo);
+    const windowTasks = allUserTasks.filter(
+      (t) => t.createdAt >= fourteenDaysAgo,
+    );
     const nWindow = windowTasks.length;
 
     // Completed tasks in last 14 days
     const completedWindowTasks = allUserTasks.filter(
-      t => t.status === TaskStatus.DONE && t.completedAt && t.completedAt >= fourteenDaysAgo
+      (t) =>
+        t.status === TaskStatus.DONE &&
+        t.completedAt &&
+        t.completedAt >= fourteenDaysAgo,
     );
     const tasksCompletedLast14Days = completedWindowTasks.length;
 
     // Skipped tasks in last 14 days evaluation window
-    const skippedWindowTasks = windowTasks.filter(t => t.status === TaskStatus.SKIPPED);
+    const skippedWindowTasks = windowTasks.filter(
+      (t) => t.status === TaskStatus.SKIPPED,
+    );
     const nSkipped = skippedWindowTasks.length;
 
     // Mathematical calculations
-    const weeklyVelocity = Math.round((tasksCompletedLast14Days / 2.0) * 100) / 100;
-    const taskSkipRate = nWindow > 0 ? Math.round((nSkipped / nWindow) * 100) / 100 : 0.0;
+    const weeklyVelocity =
+      Math.round((tasksCompletedLast14Days / 2.0) * 100) / 100;
+    const taskSkipRate =
+      nWindow > 0 ? Math.round((nSkipped / nWindow) * 100) / 100 : 0.0;
 
     // Overdue tasks count (active tasks where dueDate < now and status !== DONE)
     const overdueTasks = allUserTasks.filter(
-      t => t.dueDate && t.dueDate < now && t.status !== TaskStatus.DONE
+      (t) => t.dueDate && t.dueDate < now && t.status !== TaskStatus.DONE,
     ).length;
 
     // Exact Precedence Evaluation
@@ -67,7 +80,7 @@ export class PaceAdaptationService {
     let suggestedBatchSize = 1;
     let whyReason = '';
 
-    if (taskSkipRate > 0.50) {
+    if (taskSkipRate > 0.5) {
       paceState = 'LOW_ACTIVITY';
       horizonDays = 3;
       suggestedBatchSize = 1;
@@ -77,12 +90,20 @@ export class PaceAdaptationService {
       horizonDays = 7;
       suggestedBatchSize = 3;
       whyReason = `High completion velocity (${weeklyVelocity.toFixed(1)} tasks/week), but high overdue task count (${overdueTasks} >= 2) adjusts pace to STEADY (Batch size: 3, Horizon: 7 days).`;
-    } else if (weeklyVelocity > 5.0 && taskSkipRate <= 0.50 && overdueTasks <= 1) {
+    } else if (
+      weeklyVelocity > 5.0 &&
+      taskSkipRate <= 0.5 &&
+      overdueTasks <= 1
+    ) {
       paceState = 'HIGH_ACTIVITY';
       horizonDays = 14;
       suggestedBatchSize = 5;
       whyReason = `High completion velocity (${weeklyVelocity.toFixed(1)} tasks/week), low skip rate (${(taskSkipRate * 100).toFixed(0)}%), and low overdue count (${overdueTasks}). Pace set to HIGH_ACTIVITY (Batch size: 5, Horizon: 14 days).`;
-    } else if (weeklyVelocity >= 2.0 && weeklyVelocity <= 5.0 && taskSkipRate <= 0.50) {
+    } else if (
+      weeklyVelocity >= 2.0 &&
+      weeklyVelocity <= 5.0 &&
+      taskSkipRate <= 0.5
+    ) {
       paceState = 'STEADY';
       horizonDays = 7;
       suggestedBatchSize = 3;
@@ -114,7 +135,10 @@ export class PaceAdaptationService {
   /**
    * Roadmap Pace Adaptation API with Roadmap Ownership Verification
    */
-  async getRoadmapPaceAdaptation(userId: string, roadmapId: string): Promise<RoadmapPaceAdaptationDto> {
+  async getRoadmapPaceAdaptation(
+    userId: string,
+    roadmapId: string,
+  ): Promise<RoadmapPaceAdaptationDto> {
     const roadmap = await this.prisma.roadmap.findUnique({
       where: { id: roadmapId },
     });
@@ -124,7 +148,9 @@ export class PaceAdaptationService {
     }
 
     if (roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to view pace adaptation for this roadmap.');
+      throw new ForbiddenException(
+        'You do not have permission to view pace adaptation for this roadmap.',
+      );
     }
 
     const baseAdaptation = await this.getPaceAdaptation(userId);

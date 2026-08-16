@@ -38,18 +38,13 @@ describe('JourneysService', () => {
         milestones: [
           {
             id: 'm1',
-            tasks: [
-              { status: 'DONE' },
-              { status: 'TODO' },
-            ]
+            tasks: [{ status: 'DONE' }, { status: 'TODO' }],
           },
           {
             id: 'm2',
-            tasks: [
-              { status: 'DONE' }
-            ]
-          }
-        ]
+            tasks: [{ status: 'DONE' }],
+          },
+        ],
       } as any);
 
       const journey = await service.getJourney('u1', 'j1');
@@ -64,10 +59,12 @@ describe('JourneysService', () => {
         id: 'j1',
         userId: 'u1', // Belongs to u1
         deletedAt: null,
-        milestones: []
+        milestones: [],
       } as any);
 
-      await expect(service.getJourney('u2', 'j1')).rejects.toThrow(ForbiddenException);
+      await expect(service.getJourney('u2', 'j1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

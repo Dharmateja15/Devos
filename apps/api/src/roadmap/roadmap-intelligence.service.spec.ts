@@ -1,8 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RoadmapIntelligenceService } from './roadmap-intelligence.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MappingStatus, RoadmapPriority, RoadmapStatus, LearnerState } from '@prisma/client';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  MappingStatus,
+  RoadmapPriority,
+  RoadmapStatus,
+  LearnerState,
+} from '@prisma/client';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 
 describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
   let service: RoadmapIntelligenceService;
@@ -86,34 +95,75 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
         findUnique: jest.fn().mockImplementation(({ where }) => {
           if (where.id === 'rm-1') return Promise.resolve(mockRoadmap);
           if (where.id === 'rm-user2') return Promise.resolve(mockRoadmapUser2);
-          if (where.id === 'rm-other') return Promise.resolve({ ...mockRoadmap, id: 'rm-other', userId: 'user-other' });
-          if (where.id === 'rm-deleted') return Promise.resolve({ ...mockRoadmap, id: 'rm-deleted', deletedAt: new Date() });
+          if (where.id === 'rm-other')
+            return Promise.resolve({
+              ...mockRoadmap,
+              id: 'rm-other',
+              userId: 'user-other',
+            });
+          if (where.id === 'rm-deleted')
+            return Promise.resolve({
+              ...mockRoadmap,
+              id: 'rm-deleted',
+              deletedAt: new Date(),
+            });
           return Promise.resolve(null);
         }),
         findMany: jest.fn().mockResolvedValue([]),
       },
       roadmapNode: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          if (where.id === 'node-1') return Promise.resolve({ ...mockNode, snapshot: { roadmap: mockRoadmap } });
-          if (where.id === 'node-user2') return Promise.resolve({ ...mockNodeUser2, snapshot: { roadmap: mockRoadmapUser2 } });
-          if (where.id === 'node-other') return Promise.resolve({ ...mockNode, id: 'node-other', snapshot: { roadmap: { ...mockRoadmap, userId: 'user-other' } } });
+          if (where.id === 'node-1')
+            return Promise.resolve({
+              ...mockNode,
+              snapshot: { roadmap: mockRoadmap },
+            });
+          if (where.id === 'node-user2')
+            return Promise.resolve({
+              ...mockNodeUser2,
+              snapshot: { roadmap: mockRoadmapUser2 },
+            });
+          if (where.id === 'node-other')
+            return Promise.resolve({
+              ...mockNode,
+              id: 'node-other',
+              snapshot: { roadmap: { ...mockRoadmap, userId: 'user-other' } },
+            });
           return Promise.resolve(null);
         }),
-        update: jest.fn().mockImplementation(({ where, data }) => Promise.resolve({ id: where.id, ...data })),
+        update: jest
+          .fn()
+          .mockImplementation(({ where, data }) =>
+            Promise.resolve({ id: where.id, ...data }),
+          ),
       },
       roadmapMapping: {
-        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'map-gen', ...data })),
-        update: jest.fn().mockImplementation(({ where, data }) => Promise.resolve({ id: where.id, ...data })),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: 'map-gen', ...data }),
+          ),
+        update: jest
+          .fn()
+          .mockImplementation(({ where, data }) =>
+            Promise.resolve({ id: where.id, ...data }),
+          ),
       },
       task: {
         findMany: jest.fn().mockResolvedValue([
-          { id: 'task-1', title: 'Python Basics', journey: { id: 'j-1', userId: 'user-1' } },
+          {
+            id: 'task-1',
+            title: 'Python Basics',
+            journey: { id: 'j-1', userId: 'user-1' },
+          },
         ]),
       },
       learnerConceptState: {
         findMany: jest.fn().mockImplementation(({ where }) => {
           if (where.userId === 'user-1') {
-            return Promise.resolve([{ concept: { title: 'Python' }, state: LearnerState.MASTERED }]);
+            return Promise.resolve([
+              { concept: { title: 'Python' }, state: LearnerState.MASTERED },
+            ]);
           }
           return Promise.resolve([]);
         }),
@@ -127,7 +177,9 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
       ],
     }).compile();
 
-    service = module.get<RoadmapIntelligenceService>(RoadmapIntelligenceService);
+    service = module.get<RoadmapIntelligenceService>(
+      RoadmapIntelligenceService,
+    );
   });
 
   describe('Goal Change Impact Analysis (Requirement E)', () => {
@@ -142,16 +194,22 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
       expect(result.activeMaterializedTasksCount).toBe(1);
       expect(result.deprioritizedTasks.length).toBe(1);
       expect(result.retainedUsefulTasks.length).toBe(1);
-      expect(result.summaryExplanation).toContain('lowers Daily Focus task ranking');
+      expect(result.summaryExplanation).toContain(
+        'lowers Daily Focus task ranking',
+      );
       expect(prismaService.roadmapMapping.update).not.toHaveBeenCalled();
     });
 
     it('2. Rejects unauthorized access with ForbiddenException', async () => {
-      await expect(service.analyzeGoalChangeImpact('user-1', 'rm-other', {})).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.analyzeGoalChangeImpact('user-1', 'rm-other', {}),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('3. Rejects soft-deleted roadmap with NotFoundException', async () => {
-      await expect(service.analyzeGoalChangeImpact('user-1', 'rm-deleted', {})).rejects.toThrow(NotFoundException);
+      await expect(
+        service.analyzeGoalChangeImpact('user-1', 'rm-deleted', {}),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -161,9 +219,15 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
 
       expect(result.roadmapId).toBe('rm-1');
       expect(result.complementaryNodes.length).toBe(1);
-      expect(result.complementaryNodes[0].learnerCurrentState).toBe(LearnerState.MASTERED);
-      expect(result.complementaryNodes[0].suggestedTaskTitle).toContain('Contextual Application');
-      expect(result.complementaryNodes[0].whyReason).toContain('skip generic fundamentals');
+      expect(result.complementaryNodes[0].learnerCurrentState).toBe(
+        LearnerState.MASTERED,
+      );
+      expect(result.complementaryNodes[0].suggestedTaskTitle).toContain(
+        'Contextual Application',
+      );
+      expect(result.complementaryNodes[0].whyReason).toContain(
+        'skip generic fundamentals',
+      );
     });
 
     it('2. Falls back to standard learning path when no matching capability exists', async () => {
@@ -171,12 +235,18 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
 
       const result = await service.getComplementaryContext('user-1', 'rm-1');
 
-      expect(result.complementaryNodes[0].learnerCurrentState).toBe(LearnerState.UNKNOWN);
-      expect(result.complementaryNodes[0].whyReason).toContain('Standard sequential learning path applies');
+      expect(result.complementaryNodes[0].learnerCurrentState).toBe(
+        LearnerState.UNKNOWN,
+      );
+      expect(result.complementaryNodes[0].whyReason).toContain(
+        'Standard sequential learning path applies',
+      );
     });
 
     it('3. Rejects unauthorized roadmap context access', async () => {
-      await expect(service.getComplementaryContext('user-1', 'rm-other')).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.getComplementaryContext('user-1', 'rm-other'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -222,7 +292,9 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
     it('3. Rejects unnecessary decomposition for COMPLETED nodes', async () => {
       const completedNode = {
         ...mockNode,
-        mappings: [{ ...mockNode.mappings[0], mappingStatus: MappingStatus.COMPLETED }],
+        mappings: [
+          { ...mockNode.mappings[0], mappingStatus: MappingStatus.COMPLETED },
+        ],
       };
       prismaService.roadmapNode.findUnique.mockResolvedValue({
         ...completedNode,
@@ -236,7 +308,9 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
     });
 
     it('4. Rejects unauthorized node decomposition', async () => {
-      await expect(service.decomposeNode('user-1', 'node-other', {})).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.decomposeNode('user-1', 'node-other', {}),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -261,28 +335,43 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
     });
 
     it('2. Rejects unauthorized dismissal attempt', async () => {
-      await expect(service.dismissDecomposition('user-1', 'node-other', {})).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.dismissDecomposition('user-1', 'node-other', {}),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('Multi-User Safety & Cross-User Isolation Verification', () => {
-    it('1. User A decomposing Node A does NOT pollute User B\'s Node B metadata', async () => {
+    it("1. User A decomposing Node A does NOT pollute User B's Node B metadata", async () => {
       // User A decomposes node-1
       await service.decomposeNode('user-1', 'node-1', {});
 
       // User B inspects node-user2 (same topic title)
-      const user2Context = await service.getComplementaryContext('user-2', 'rm-user2');
+      const user2Context = await service.getComplementaryContext(
+        'user-2',
+        'rm-user2',
+      );
 
-      expect(user2Context.complementaryNodes[0].learnerCurrentState).toBe(LearnerState.UNKNOWN);
-      expect(user2Context.complementaryNodes[0].whyReason).toContain('Standard sequential learning path applies');
+      expect(user2Context.complementaryNodes[0].learnerCurrentState).toBe(
+        LearnerState.UNKNOWN,
+      );
+      expect(user2Context.complementaryNodes[0].whyReason).toContain(
+        'Standard sequential learning path applies',
+      );
       expect(mockNodeUser2.metadata).toEqual({}); // User B node metadata remains untouched
     });
 
     it('2. User A dismissing decomposition on Node A leaves User B unaffected', async () => {
-      await service.dismissDecomposition('user-1', 'node-1', { reason: 'User A dismiss' });
+      await service.dismissDecomposition('user-1', 'node-1', {
+        reason: 'User A dismiss',
+      });
 
       // User B decomposes their own node-user2
-      const user2Decompose = await service.decomposeNode('user-2', 'node-user2', { forceDecomposition: true });
+      const user2Decompose = await service.decomposeNode(
+        'user-2',
+        'node-user2',
+        { forceDecomposition: true },
+      );
 
       expect(user2Decompose.isDecomposed).toBe(true);
       expect(user2Decompose.nodeId).toBe('node-user2');
@@ -298,10 +387,17 @@ describe('RoadmapIntelligenceService (Sub-Block 6A)', () => {
 
     it('3. User A complementary context does NOT leak to User B', async () => {
       const user1Res = await service.getComplementaryContext('user-1', 'rm-1');
-      const user2Res = await service.getComplementaryContext('user-2', 'rm-user2');
+      const user2Res = await service.getComplementaryContext(
+        'user-2',
+        'rm-user2',
+      );
 
-      expect(user1Res.complementaryNodes[0].learnerCurrentState).toBe(LearnerState.MASTERED);
-      expect(user2Res.complementaryNodes[0].learnerCurrentState).toBe(LearnerState.UNKNOWN);
+      expect(user1Res.complementaryNodes[0].learnerCurrentState).toBe(
+        LearnerState.MASTERED,
+      );
+      expect(user2Res.complementaryNodes[0].learnerCurrentState).toBe(
+        LearnerState.UNKNOWN,
+      );
     });
   });
 });

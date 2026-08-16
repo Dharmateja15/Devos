@@ -34,7 +34,9 @@ export class CapabilityFreshnessService {
   /**
    * Requirement L: Pure Read-Only Derived Capability Freshness Evaluation
    */
-  async getCapabilityFreshness(userId: string): Promise<CapabilityFreshnessResponseDto> {
+  async getCapabilityFreshness(
+    userId: string,
+  ): Promise<CapabilityFreshnessResponseDto> {
     const now = new Date();
 
     // Fetch canonical data strictly for userId
@@ -61,19 +63,28 @@ export class CapabilityFreshnessService {
     const canonicalSkills = await this.prisma.skill.findMany();
 
     // Capability map storing weighted evidence timestamps
-    const capabilityFreshnessMap = new Map<string, {
-      title: string;
-      learnerState: LearnerState;
-      weightedTimestamps: { date: Date; weight: number; source: string }[];
-    }>();
+    const capabilityFreshnessMap = new Map<
+      string,
+      {
+        title: string;
+        learnerState: LearnerState;
+        weightedTimestamps: { date: Date; weight: number; source: string }[];
+      }
+    >();
 
     const getOrCreateEntry = (rawTitle: string) => {
       const normalizedKey = rawTitle.toLowerCase().trim();
       if (!capabilityFreshnessMap.has(normalizedKey)) {
-        const matchedConcept = canonicalConcepts.find(c => c.title.toLowerCase() === normalizedKey);
-        const matchedSkill = canonicalSkills.find(s => s.name.toLowerCase() === normalizedKey);
+        const matchedConcept = canonicalConcepts.find(
+          (c) => c.title.toLowerCase() === normalizedKey,
+        );
+        const matchedSkill = canonicalSkills.find(
+          (s) => s.name.toLowerCase() === normalizedKey,
+        );
 
-        const ls = learnerStates.find(l => l.concept.title.toLowerCase() === normalizedKey);
+        const ls = learnerStates.find(
+          (l) => l.concept.title.toLowerCase() === normalizedKey,
+        );
         const lState = ls?.state || LearnerState.UNKNOWN;
 
         capabilityFreshnessMap.set(normalizedKey, {
@@ -89,15 +100,21 @@ export class CapabilityFreshnessService {
     // 1. Evidence items
     for (const ev of evidenceItems) {
       const meta = (ev.metadata as Record<string, any>) || {};
-      const detectedTech: string[] = Array.isArray(meta.detectedTechnologies) ? meta.detectedTechnologies : [];
+      const detectedTech: string[] = Array.isArray(meta.detectedTechnologies)
+        ? meta.detectedTechnologies
+        : [];
       const evDate = ev.githubEventAt || ev.verifiedAt || ev.createdAt;
       const isVerified = ev.verified;
 
       for (const tech of detectedTech) {
         const entry = getOrCreateEntry(tech);
         if (evDate) {
-          const weight = isVerified ? 0.75 : 0.40;
-          entry.weightedTimestamps.push({ date: new Date(evDate), weight, source: 'EVIDENCE_ITEM' });
+          const weight = isVerified ? 0.75 : 0.4;
+          entry.weightedTimestamps.push({
+            date: new Date(evDate),
+            weight,
+            source: 'EVIDENCE_ITEM',
+          });
         }
       }
     }
@@ -105,24 +122,33 @@ export class CapabilityFreshnessService {
     // 2. Completed Projects (completedAt date only, NOT updatedAt)
     for (const proj of userProjects) {
       if (!proj.completedAt) continue;
-      const hasVerifiedEv = proj.evidence.some(e => e.verified);
-      const weight = hasVerifiedEv ? 0.85 : 0.60;
+      const hasVerifiedEv = proj.evidence.some((e) => e.verified);
+      const weight = hasVerifiedEv ? 0.85 : 0.6;
 
       for (const tech of proj.techStack) {
         const entry = getOrCreateEntry(tech);
-        entry.weightedTimestamps.push({ date: new Date(proj.completedAt), weight, source: 'COMPLETED_PROJECT' });
+        entry.weightedTimestamps.push({
+          date: new Date(proj.completedAt),
+          weight,
+          source: 'COMPLETED_PROJECT',
+        });
       }
     }
 
     // 3. Completed Tasks
     for (const task of userTasks) {
       if (!task.completedAt) continue;
-      const isIndependent = task.independenceSignal === IndependenceSignal.INDEPENDENT;
-      const weight = isIndependent ? 1.00 : 0.60;
+      const isIndependent =
+        task.independenceSignal === IndependenceSignal.INDEPENDENT;
+      const weight = isIndependent ? 1.0 : 0.6;
 
       for (const ts of task.skills) {
         const entry = getOrCreateEntry(ts.skill.name);
-        entry.weightedTimestamps.push({ date: new Date(task.completedAt), weight, source: 'TASK_COMPLETION' });
+        entry.weightedTimestamps.push({
+          date: new Date(task.completedAt),
+          weight,
+          source: 'TASK_COMPLETION',
+        });
       }
     }
 
@@ -132,8 +158,12 @@ export class CapabilityFreshnessService {
       entry.learnerState = ls.state;
 
       if (ls.lastEvaluatedAt) {
-        const weight = ls.state === LearnerState.MASTERED ? 1.00 : 0.60;
-        entry.weightedTimestamps.push({ date: new Date(ls.lastEvaluatedAt), weight, source: 'LEARNER_STATE_EVAL' });
+        const weight = ls.state === LearnerState.MASTERED ? 1.0 : 0.6;
+        entry.weightedTimestamps.push({
+          date: new Date(ls.lastEvaluatedAt),
+          weight,
+          source: 'LEARNER_STATE_EVAL',
+        });
       }
     }
 
@@ -147,11 +177,11 @@ export class CapabilityFreshnessService {
     for (const [key, data] of capabilityFreshnessMap.entries()) {
       // Filter timestamps with weight >= 0.60 (Weak 0.40 signals cannot displace older strong historical evidence!)
       const meaningfulTimestamps = data.weightedTimestamps
-        .filter(t => t.weight >= 0.60 && !isNaN(t.date.getTime()))
+        .filter((t) => t.weight >= 0.6 && !isNaN(t.date.getTime()))
         .sort((a, b) => b.date.getTime() - a.date.getTime()); // Descending order
 
       const fallbackTimestamps = data.weightedTimestamps
-        .filter(t => !isNaN(t.date.getTime()))
+        .filter((t) => !isNaN(t.date.getTime()))
         .sort((a, b) => b.date.getTime() - a.date.getTime());
 
       const latestDemo = meaningfulTimestamps[0] || fallbackTimestamps[0];
@@ -183,8 +213,11 @@ export class CapabilityFreshnessService {
         }
 
         // Bounded Recency Score [0.0, 1.0]
-        const rawScore = 1.0 - (daysSinceLastDemonstration / 90);
-        recencyScore = Math.max(0.0, Math.min(1.0, Math.round(rawScore * 100) / 100));
+        const rawScore = 1.0 - daysSinceLastDemonstration / 90;
+        recencyScore = Math.max(
+          0.0,
+          Math.min(1.0, Math.round(rawScore * 100) / 100),
+        );
 
         whyReason = `Capability "${data.title}" last demonstrated ${daysSinceLastDemonstration} days ago (${latestDemo.source}). Classified as ${freshnessState} (Recency score: ${recencyScore.toFixed(2)}).`;
       } else {
@@ -193,11 +226,18 @@ export class CapabilityFreshnessService {
         whyReason = `No timestamped demonstration found for "${data.title}". Classified as UNKNOWN_FRESHNESS.`;
       }
 
-      const matchedConcept = canonicalConcepts.find(c => c.title.toLowerCase() === key);
-      const matchedSkill = canonicalSkills.find(s => s.name.toLowerCase() === key);
+      const matchedConcept = canonicalConcepts.find(
+        (c) => c.title.toLowerCase() === key,
+      );
+      const matchedSkill = canonicalSkills.find(
+        (s) => s.name.toLowerCase() === key,
+      );
 
       freshnessList.push({
-        capabilityId: matchedConcept?.id || matchedSkill?.id || `tech-${key.replace(/[^a-z0-9]/g, '-')}`,
+        capabilityId:
+          matchedConcept?.id ||
+          matchedSkill?.id ||
+          `tech-${key.replace(/[^a-z0-9]/g, '-')}`,
         capabilityTitle: data.title,
         learnerState: data.learnerState,
         freshnessState,

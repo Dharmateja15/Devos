@@ -1,6 +1,14 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GamificationService, GamificationContext } from '../gamification/gamification.service';
+import {
+  GamificationService,
+  GamificationContext,
+} from '../gamification/gamification.service';
 import { AchievementsService } from '../gamification/achievements.service';
 import { EvidenceType } from '@prisma/client';
 
@@ -9,7 +17,7 @@ export class EvidenceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gamification: GamificationService,
-    private readonly achievements: AchievementsService
+    private readonly achievements: AchievementsService,
   ) {}
 
   async createEvidence(userId: string, data: any) {
@@ -21,16 +29,24 @@ export class EvidenceService {
         where: { id: data.taskId },
         include: { journey: true },
       });
-      if (!task || task.deletedAt || task.journey.deletedAt) throw new NotFoundException('Task not found');
-      if (task.journey.userId !== userId) throw new ForbiddenException('You do not own this task');
+      if (!task || task.deletedAt || task.journey.deletedAt)
+        throw new NotFoundException('Task not found');
+      if (task.journey.userId !== userId)
+        throw new ForbiddenException('You do not own this task');
       journeyId = task.journeyId;
     } else if (data.journeyId) {
-      const journey = await this.prisma.journey.findUnique({ where: { id: data.journeyId } });
-      if (!journey || journey.deletedAt) throw new NotFoundException('Journey not found');
-      if (journey.userId !== userId) throw new ForbiddenException('You do not own this journey');
+      const journey = await this.prisma.journey.findUnique({
+        where: { id: data.journeyId },
+      });
+      if (!journey || journey.deletedAt)
+        throw new NotFoundException('Journey not found');
+      if (journey.userId !== userId)
+        throw new ForbiddenException('You do not own this journey');
       journeyId = journey.id;
     } else {
-      throw new BadRequestException('Evidence must be attached to a task or journey');
+      throw new BadRequestException(
+        'Evidence must be attached to a task or journey',
+      );
     }
 
     if (!Object.values(EvidenceType).includes(data.evidenceType)) {
@@ -60,13 +76,13 @@ export class EvidenceService {
       if (data.taskId && data.evidenceType === EvidenceType.MANUAL) {
         const sourceId = data.taskId;
         const sourceType = 'TASK_EVIDENCE';
-        
+
         xpAwarded = await this.gamification.awardXp(
-          ctx, 
-          5, 
-          sourceId, 
-          sourceType, 
-          'Manual evidence attached to task'
+          ctx,
+          5,
+          sourceId,
+          sourceType,
+          'Manual evidence attached to task',
         );
       }
 
@@ -79,13 +95,13 @@ export class EvidenceService {
           aggregateType: 'EVIDENCE',
           aggregateId: evidence.id,
           eventType: 'evidence.created',
-          payload: { 
-            evidenceId: evidence.id, 
-            taskId: data.taskId, 
-            xpAwarded 
+          payload: {
+            evidenceId: evidence.id,
+            taskId: data.taskId,
+            xpAwarded,
           },
           userId,
-        }
+        },
       });
 
       return evidence;
@@ -103,8 +119,11 @@ export class EvidenceService {
   }
 
   async getEvidenceById(userId: string, id: string) {
-    const evidence = await this.prisma.evidenceItem.findUnique({ where: { id } });
-    if (!evidence || evidence.deletedAt) throw new NotFoundException('Evidence not found');
+    const evidence = await this.prisma.evidenceItem.findUnique({
+      where: { id },
+    });
+    if (!evidence || evidence.deletedAt)
+      throw new NotFoundException('Evidence not found');
     if (evidence.userId !== userId) throw new ForbiddenException();
     return evidence;
   }

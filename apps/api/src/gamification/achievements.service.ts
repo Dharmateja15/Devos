@@ -23,7 +23,9 @@ export class AchievementsService {
     });
 
     if (!achievementDef) {
-      this.logger.debug(`Achievement definition for ${achievementCode} not found in DB`);
+      this.logger.debug(
+        `Achievement definition for ${achievementCode} not found in DB`,
+      );
       return false; // Skip if it doesn't exist
     }
 
@@ -73,8 +75,49 @@ export class AchievementsService {
   /**
    * Checks streak achievements (streak_3, streak_7)
    */
-  async checkStreakAchievements(ctx: GamificationContext, currentStreak: number): Promise<void> {
+  async checkStreakAchievements(
+    ctx: GamificationContext,
+    currentStreak: number,
+  ): Promise<void> {
     if (currentStreak >= 3) await this.evaluateAchievement(ctx, 'streak_3');
     if (currentStreak >= 7) await this.evaluateAchievement(ctx, 'streak_7');
+  }
+
+  /**
+   * Retrieves complete system achievement catalogue with earned/locked state for authenticated user.
+   */
+  async getUserAchievementCatalogue(userId: string) {
+    const activeDefinitions = await this.prisma.achievement.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const userAwards = await this.prisma.userAchievement.findMany({
+      where: { userId },
+      select: {
+        achievementId: true,
+        awardedAt: true,
+      },
+    });
+
+    const awardMap = new Map<string, Date>();
+    userAwards.forEach((award) => {
+      awardMap.set(award.achievementId, award.awardedAt);
+    });
+
+    return activeDefinitions.map((def) => {
+      const earned = awardMap.has(def.id);
+      return {
+        id: def.id,
+        code: def.code,
+        name: def.name,
+        description: def.description,
+        icon: def.icon,
+        category: def.category,
+        xpReward: def.xpReward,
+        earned,
+        earnedAt: earned ? awardMap.get(def.id) : null,
+      };
+    });
   }
 }

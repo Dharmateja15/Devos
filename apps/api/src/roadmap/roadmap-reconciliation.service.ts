@@ -1,6 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MappingStatus, TaskStatus, ProjectStatus, LearnerState } from '@prisma/client';
+import {
+  MappingStatus,
+  TaskStatus,
+  ProjectStatus,
+  LearnerState,
+} from '@prisma/client';
 
 export interface ReconciliationSignal {
   code: string;
@@ -30,7 +39,10 @@ export class RoadmapReconciliationService {
    * Runs deterministic reconciliation for a given RoadmapSnapshot.
    * Compares snapshot nodes against all existing user learner state.
    */
-  async reconcileSnapshot(userId: string, snapshotId: string): Promise<ReconciliationNodeResult[]> {
+  async reconcileSnapshot(
+    userId: string,
+    snapshotId: string,
+  ): Promise<ReconciliationNodeResult[]> {
     // 1. Verify snapshot access
     const snapshot = await this.prisma.roadmapSnapshot.findUnique({
       where: { id: snapshotId },
@@ -46,32 +58,37 @@ export class RoadmapReconciliationService {
     });
 
     if (!snapshot) {
-      throw new NotFoundException(`RoadmapSnapshot with ID ${snapshotId} not found.`);
+      throw new NotFoundException(
+        `RoadmapSnapshot with ID ${snapshotId} not found.`,
+      );
     }
 
     if (snapshot.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to reconcile this roadmap snapshot.');
+      throw new ForbiddenException(
+        'You do not have permission to reconcile this roadmap snapshot.',
+      );
     }
 
     // 2. Load user's existing learner state
-    const [tasks, projects, skills, evidenceItems, conceptStates] = await Promise.all([
-      this.prisma.task.findMany({
-        where: { journey: { userId }, deletedAt: null },
-        include: { journey: true },
-      }),
-      this.prisma.project.findMany({
-        where: { journey: { userId }, deletedAt: null },
-        include: { journey: true },
-      }),
-      this.prisma.skill.findMany({}), // Skills are global catalog
-      this.prisma.evidenceItem.findMany({
-        where: { userId, deletedAt: null },
-      }),
-      this.prisma.learnerConceptState.findMany({
-        where: { userId },
-        include: { concept: true },
-      }),
-    ]);
+    const [tasks, projects, skills, evidenceItems, conceptStates] =
+      await Promise.all([
+        this.prisma.task.findMany({
+          where: { journey: { userId }, deletedAt: null },
+          include: { journey: true },
+        }),
+        this.prisma.project.findMany({
+          where: { journey: { userId }, deletedAt: null },
+          include: { journey: true },
+        }),
+        this.prisma.skill.findMany({}), // Skills are global catalog
+        this.prisma.evidenceItem.findMany({
+          where: { userId, deletedAt: null },
+        }),
+        this.prisma.learnerConceptState.findMany({
+          where: { userId },
+          include: { concept: true },
+        }),
+      ]);
 
     const results: ReconciliationNodeResult[] = [];
 
@@ -80,13 +97,25 @@ export class RoadmapReconciliationService {
       const existingMapping = node.mappings[0];
 
       // Respect user lock if mapping was manually confirmed or skipped
-      if (existingMapping && (existingMapping.userConfirmation || existingMapping.mappingStatus === MappingStatus.SKIPPED)) {
+      if (
+        existingMapping &&
+        (existingMapping.userConfirmation ||
+          existingMapping.mappingStatus === MappingStatus.SKIPPED)
+      ) {
         results.push({
           nodeId: node.id,
           mappingStatus: existingMapping.mappingStatus,
           confidenceScore: existingMapping.confidenceScore,
-          matchingReason: existingMapping.matchingReason || 'Preserved user confirmed mapping.',
-          signals: [{ code: 'USER_CONFIRMED_PRESERVED', weight: 1.0, description: 'User confirmation preserved' }],
+          matchingReason:
+            existingMapping.matchingReason ||
+            'Preserved user confirmed mapping.',
+          signals: [
+            {
+              code: 'USER_CONFIRMED_PRESERVED',
+              weight: 1.0,
+              description: 'User confirmation preserved',
+            },
+          ],
           journeyId: existingMapping.journeyId || undefined,
           taskId: existingMapping.taskId || undefined,
           projectId: existingMapping.projectId || undefined,
@@ -106,29 +135,40 @@ export class RoadmapReconciliationService {
       const normalizedNodeTitle = node.title.toLowerCase().trim();
 
       // Signal 1: Task match
-      const matchingTasks = tasks.filter(t => {
+      const matchingTasks = tasks.filter((t) => {
         const taskTitle = t.title.toLowerCase().trim();
-        if (taskTitle === normalizedNodeTitle || taskTitle.includes(normalizedNodeTitle) || normalizedNodeTitle.includes(taskTitle)) {
+        if (
+          taskTitle === normalizedNodeTitle ||
+          taskTitle.includes(normalizedNodeTitle) ||
+          normalizedNodeTitle.includes(taskTitle)
+        ) {
           return true;
         }
         // Token level overlap
-        const nodeTokens = normalizedNodeTitle.split(/\s+/).filter(w => w.length > 2);
-        const taskTokens = taskTitle.split(/\s+/).filter(w => w.length > 2);
-        return nodeTokens.some(nt => taskTokens.includes(nt));
+        const nodeTokens = normalizedNodeTitle
+          .split(/\s+/)
+          .filter((w) => w.length > 2);
+        const taskTokens = taskTitle.split(/\s+/).filter((w) => w.length > 2);
+        return nodeTokens.some((nt) => taskTokens.includes(nt));
       });
 
       if (matchingTasks.length > 0) {
         candidateMatchesCount += matchingTasks.length;
-        const exactTask = matchingTasks.find(t => t.title.toLowerCase().trim() === normalizedNodeTitle);
+        const exactTask = matchingTasks.find(
+          (t) => t.title.toLowerCase().trim() === normalizedNodeTitle,
+        );
         const targetTask = exactTask || matchingTasks[0];
         matchedTaskId = targetTask.id;
         matchedJourneyId = targetTask.journeyId;
 
         if (targetTask.status === TaskStatus.DONE) {
-          const isExact = targetTask.title.toLowerCase().trim() === normalizedNodeTitle;
-          const weight = isExact ? 0.80 : 0.35;
+          const isExact =
+            targetTask.title.toLowerCase().trim() === normalizedNodeTitle;
+          const weight = isExact ? 0.8 : 0.35;
           signals.push({
-            code: isExact ? 'EXACT_COMPLETED_TASK_MATCH' : 'PARTIAL_COMPLETED_TASK_MATCH',
+            code: isExact
+              ? 'EXACT_COMPLETED_TASK_MATCH'
+              : 'PARTIAL_COMPLETED_TASK_MATCH',
             weight,
             description: `Matched completed task "${targetTask.title}"`,
             entityId: targetTask.id,
@@ -138,20 +178,26 @@ export class RoadmapReconciliationService {
         } else if (targetTask.status === TaskStatus.IN_PROGRESS) {
           signals.push({
             code: 'IN_PROGRESS_TASK_MATCH',
-            weight: 0.50,
+            weight: 0.5,
             description: `Matched active task "${targetTask.title}"`,
             entityId: targetTask.id,
             entityType: 'task',
           });
-          totalScore += 0.50;
+          totalScore += 0.5;
         }
       }
 
       // Signal 2: Project match
-      const matchingProjects = projects.filter(p => {
+      const matchingProjects = projects.filter((p) => {
         const projTitle = p.title.toLowerCase().trim();
-        const techMatch = p.techStack.some(ts => ts.toLowerCase().trim() === normalizedNodeTitle);
-        return projTitle === normalizedNodeTitle || projTitle.includes(normalizedNodeTitle) || techMatch;
+        const techMatch = p.techStack.some(
+          (ts) => ts.toLowerCase().trim() === normalizedNodeTitle,
+        );
+        return (
+          projTitle === normalizedNodeTitle ||
+          projTitle.includes(normalizedNodeTitle) ||
+          techMatch
+        );
       });
 
       if (matchingProjects.length > 0) {
@@ -163,46 +209,51 @@ export class RoadmapReconciliationService {
         if (targetProj.status === ProjectStatus.COMPLETED) {
           signals.push({
             code: 'COMPLETED_PROJECT_MATCH',
-            weight: 0.80,
+            weight: 0.8,
             description: `Matched completed project "${targetProj.title}"`,
             entityId: targetProj.id,
             entityType: 'project',
           });
-          totalScore += 0.80;
+          totalScore += 0.8;
         } else if (targetProj.status === ProjectStatus.IN_PROGRESS) {
           signals.push({
             code: 'IN_PROGRESS_PROJECT_MATCH',
-            weight: 0.50,
+            weight: 0.5,
             description: `Matched active project "${targetProj.title}"`,
             entityId: targetProj.id,
             entityType: 'project',
           });
-          totalScore += 0.50;
+          totalScore += 0.5;
         }
       }
 
       // Signal 3: Skill match
-      const matchingSkill = skills.find(s => s.name.toLowerCase().trim() === normalizedNodeTitle);
+      const matchingSkill = skills.find(
+        (s) => s.name.toLowerCase().trim() === normalizedNodeTitle,
+      );
       if (matchingSkill) {
         matchedSkillId = matchingSkill.id;
         signals.push({
           code: 'SKILL_CATALOG_MATCH',
-          weight: 0.20,
+          weight: 0.2,
           description: `Matched skill catalog entry "${matchingSkill.name}"`,
           entityId: matchingSkill.id,
           entityType: 'skill',
         });
-        totalScore += 0.20;
+        totalScore += 0.2;
       }
 
       // Signal 4: Evidence match
-      const matchingEvidence = evidenceItems.filter(e => {
+      const matchingEvidence = evidenceItems.filter((e) => {
         const evTitle = e.title.toLowerCase().trim();
-        return evTitle === normalizedNodeTitle || evTitle.includes(normalizedNodeTitle);
+        return (
+          evTitle === normalizedNodeTitle ||
+          evTitle.includes(normalizedNodeTitle)
+        );
       });
 
       if (matchingEvidence.length > 0) {
-        const verifiedEv = matchingEvidence.find(e => e.verified);
+        const verifiedEv = matchingEvidence.find((e) => e.verified);
         if (verifiedEv) {
           signals.push({
             code: 'VERIFIED_EVIDENCE_MATCH',
@@ -225,35 +276,37 @@ export class RoadmapReconciliationService {
       }
 
       // Signal 5: Learner Concept State
-      const matchingConceptState = conceptStates.find(cs => cs.concept.title.toLowerCase().trim() === normalizedNodeTitle);
+      const matchingConceptState = conceptStates.find(
+        (cs) => cs.concept.title.toLowerCase().trim() === normalizedNodeTitle,
+      );
       if (matchingConceptState) {
         if (matchingConceptState.state === LearnerState.MASTERED) {
           signals.push({
             code: 'CONCEPT_MASTERED',
-            weight: 0.30,
+            weight: 0.3,
             description: `Learner state is MASTERED for concept "${matchingConceptState.concept.title}"`,
             entityId: matchingConceptState.conceptId,
             entityType: 'concept',
           });
-          totalScore += 0.30;
+          totalScore += 0.3;
         } else if (matchingConceptState.state === LearnerState.ASSESSED) {
           signals.push({
             code: 'CONCEPT_ASSESSED',
-            weight: 0.20,
+            weight: 0.2,
             description: `Learner state is ASSESSED for concept "${matchingConceptState.concept.title}"`,
             entityId: matchingConceptState.conceptId,
             entityType: 'concept',
           });
-          totalScore += 0.20;
+          totalScore += 0.2;
         } else if (matchingConceptState.state === LearnerState.SELF_REPORTED) {
           signals.push({
             code: 'CONCEPT_SELF_REPORTED',
-            weight: 0.10,
+            weight: 0.1,
             description: `Learner state is SELF_REPORTED for concept "${matchingConceptState.concept.title}"`,
             entityId: matchingConceptState.conceptId,
             entityType: 'concept',
           });
-          totalScore += 0.10;
+          totalScore += 0.1;
         }
       }
 
@@ -263,31 +316,51 @@ export class RoadmapReconciliationService {
       // Determine mapping status deterministically based on signals and confidence
       let mappingStatus: MappingStatus = MappingStatus.NEW;
 
-      const hasCompletedTaskOrProj = signals.some(s => s.code === 'EXACT_COMPLETED_TASK_MATCH' || s.code === 'COMPLETED_PROJECT_MATCH');
-      const hasVerifiedEvidence = signals.some(s => s.code === 'VERIFIED_EVIDENCE_MATCH');
-      const hasMasteredConcept = signals.some(s => s.code === 'CONCEPT_MASTERED');
-      const hasInProgressTaskOrProj = signals.some(s => s.code === 'IN_PROGRESS_TASK_MATCH' || s.code === 'IN_PROGRESS_PROJECT_MATCH');
+      const hasCompletedTaskOrProj = signals.some(
+        (s) =>
+          s.code === 'EXACT_COMPLETED_TASK_MATCH' ||
+          s.code === 'COMPLETED_PROJECT_MATCH',
+      );
+      const hasVerifiedEvidence = signals.some(
+        (s) => s.code === 'VERIFIED_EVIDENCE_MATCH',
+      );
+      const hasMasteredConcept = signals.some(
+        (s) => s.code === 'CONCEPT_MASTERED',
+      );
+      const hasInProgressTaskOrProj = signals.some(
+        (s) =>
+          s.code === 'IN_PROGRESS_TASK_MATCH' ||
+          s.code === 'IN_PROGRESS_PROJECT_MATCH',
+      );
 
-      if (candidateMatchesCount > 1 && confidenceScore < 0.60) {
+      if (candidateMatchesCount > 1 && confidenceScore < 0.6) {
         mappingStatus = MappingStatus.AMBIGUOUS;
         signals.push({
           code: 'MULTIPLE_CANDIDATES_AMBIGUOUS',
           weight: 0.0,
           description: `Multiple plausible candidate matches found (${candidateMatchesCount})`,
         });
-      } else if (confidenceScore >= 0.70 && (hasCompletedTaskOrProj || (hasVerifiedEvidence && hasMasteredConcept))) {
+      } else if (
+        confidenceScore >= 0.7 &&
+        (hasCompletedTaskOrProj || (hasVerifiedEvidence && hasMasteredConcept))
+      ) {
         mappingStatus = MappingStatus.COMPLETED;
       } else if (hasInProgressTaskOrProj) {
         mappingStatus = MappingStatus.IN_PROGRESS;
-      } else if (confidenceScore >= 0.35 && (hasVerifiedEvidence || hasMasteredConcept || signals.some(s => s.code === 'PARTIAL_COMPLETED_TASK_MATCH'))) {
+      } else if (
+        confidenceScore >= 0.35 &&
+        (hasVerifiedEvidence ||
+          hasMasteredConcept ||
+          signals.some((s) => s.code === 'PARTIAL_COMPLETED_TASK_MATCH'))
+      ) {
         mappingStatus = MappingStatus.KNOWN_UNVERIFIED;
-      } else if (confidenceScore >= 0.20) {
+      } else if (confidenceScore >= 0.2) {
         mappingStatus = MappingStatus.PARTIAL_MATCH;
       } else {
         mappingStatus = MappingStatus.NEW;
       }
 
-      const signalCodesStr = signals.map(s => s.code).join(', ');
+      const signalCodesStr = signals.map((s) => s.code).join(', ');
       const matchingReason = `[Confidence: ${confidenceScore.toFixed(2)}] Signals: ${signalCodesStr || 'NONE'}`;
 
       results.push({
@@ -341,11 +414,15 @@ export class RoadmapReconciliationService {
     });
 
     if (!snapshot) {
-      throw new NotFoundException(`RoadmapSnapshot with ID ${snapshotId} not found.`);
+      throw new NotFoundException(
+        `RoadmapSnapshot with ID ${snapshotId} not found.`,
+      );
     }
 
     if (snapshot.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to access this roadmap snapshot.');
+      throw new ForbiddenException(
+        'You do not have permission to access this roadmap snapshot.',
+      );
     }
 
     const completedNodeExternalIds = new Set<string>();
@@ -356,7 +433,8 @@ export class RoadmapReconciliationService {
         mapping &&
         (mapping.mappingStatus === MappingStatus.COMPLETED ||
           mapping.mappingStatus === MappingStatus.SKIPPED ||
-          (mapping.userConfirmation && mapping.mappingStatus === MappingStatus.USER_CONFIRMED))
+          (mapping.userConfirmation &&
+            mapping.mappingStatus === MappingStatus.USER_CONFIRMED))
       ) {
         completedNodeExternalIds.add(node.externalNodeId);
       }
@@ -371,8 +449,10 @@ export class RoadmapReconciliationService {
       }
 
       // Check dependencies (advisory, non-blocking for user navigation, but used for current position ordering)
-      const dependenciesSatisfied = node.dependencies.every(depId => completedNodeExternalIds.has(depId));
-      
+      const dependenciesSatisfied = node.dependencies.every((depId) =>
+        completedNodeExternalIds.has(depId),
+      );
+
       actionableNodes.push({
         node,
         mapping: node.mappings[0] || null,
@@ -380,15 +460,20 @@ export class RoadmapReconciliationService {
       });
     }
 
-    const currentPosition = actionableNodes.find(item => item.dependenciesSatisfied) || actionableNodes[0] || null;
+    const currentPosition =
+      actionableNodes.find((item) => item.dependenciesSatisfied) ||
+      actionableNodes[0] ||
+      null;
 
     return {
       snapshotId: snapshot.id,
       totalNodes: snapshot.nodes.length,
       completedNodesCount: completedNodeExternalIds.size,
       currentPositionNode: currentPosition ? currentPosition.node : null,
-      nextActionableNodes: actionableNodes.slice(0, 3).map(item => item.node),
-      isCompletedCandidate: completedNodeExternalIds.size === snapshot.nodes.length && snapshot.nodes.length > 0,
+      nextActionableNodes: actionableNodes.slice(0, 3).map((item) => item.node),
+      isCompletedCandidate:
+        completedNodeExternalIds.size === snapshot.nodes.length &&
+        snapshot.nodes.length > 0,
     };
   }
 }

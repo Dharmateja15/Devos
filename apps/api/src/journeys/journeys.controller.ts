@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { JourneysService } from './journeys.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -17,7 +27,7 @@ export class JourneysController {
   findAll(
     @CurrentUser() user: any,
     @Query('limit') limit?: string,
-    @Query('after') cursor?: string
+    @Query('after') cursor?: string,
   ) {
     const limitNum = limit ? parseInt(limit, 10) : 20;
     return this.journeysService.getJourneys(user.id, limitNum, cursor);

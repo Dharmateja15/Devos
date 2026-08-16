@@ -27,7 +27,9 @@ export class RecommendationSuppressionService {
   /**
    * Requirement R: Pure Read-Only Observable Recommendation Suppression
    */
-  async getSuppressionStatus(userId: string): Promise<RecommendationSuppressionResponseDto> {
+  async getSuppressionStatus(
+    userId: string,
+  ): Promise<RecommendationSuppressionResponseDto> {
     const now = new Date();
 
     const learnerStates = await this.prisma.learnerConceptState.findMany({
@@ -50,7 +52,9 @@ export class RecommendationSuppressionService {
     const verifiedConceptTitles = new Set<string>();
     for (const ev of evidenceItems) {
       const meta = (ev.metadata as Record<string, any>) || {};
-      const techs: string[] = Array.isArray(meta.detectedTechnologies) ? meta.detectedTechnologies : [];
+      const techs: string[] = Array.isArray(meta.detectedTechnologies)
+        ? meta.detectedTechnologies
+        : [];
       for (const t of techs) {
         verifiedConceptTitles.add(t.toLowerCase().trim());
       }
@@ -76,7 +80,9 @@ export class RecommendationSuppressionService {
       // Check Reset Triggers
       const hasNewVerifiedEv = verifiedConceptTitles.has(cTitleLower);
       const hasNewCompletedTask = completedTaskSkillNames.has(cTitleLower);
-      const isDeferredExpired = stateRec.nextReviewAt ? stateRec.nextReviewAt <= now : true;
+      const isDeferredExpired = stateRec.nextReviewAt
+        ? stateRec.nextReviewAt <= now
+        : true;
 
       // If active verified evidence or completed task arrived, suppression is reset dynamically!
       if (hasNewVerifiedEv || hasNewCompletedTask) {
@@ -101,13 +107,21 @@ export class RecommendationSuppressionService {
           priorityReduced: false,
           suppressionType: 'SKIP',
           reason: `Concept "${cTitle}" recommendations suppressed due to explicit user SKIP choice.`,
-          resetTriggers: ['New verified evidence', 'Completed task', 'Learner explicit review request'],
+          resetTriggers: [
+            'New verified evidence',
+            'Completed task',
+            'Learner explicit review request',
+          ],
         });
         continue;
       }
 
       // 2. Explicit Concept DEFER
-      if (stateRec.userIntent === 'DEFER' && stateRec.nextReviewAt && !isDeferredExpired) {
+      if (
+        stateRec.userIntent === 'DEFER' &&
+        stateRec.nextReviewAt &&
+        !isDeferredExpired
+      ) {
         suppressionList.push({
           conceptId: stateRec.conceptId,
           conceptTitle: cTitle,
@@ -116,7 +130,11 @@ export class RecommendationSuppressionService {
           suppressionType: 'DEFER',
           deferUntil: stateRec.nextReviewAt,
           reason: `Concept "${cTitle}" recommendations suppressed until deferral date ${stateRec.nextReviewAt.toISOString().split('T')[0]}.`,
-          resetTriggers: ['Deferral date expiration', 'New verified evidence', 'Completed task'],
+          resetTriggers: [
+            'Deferral date expiration',
+            'New verified evidence',
+            'Completed task',
+          ],
         });
         continue;
       }

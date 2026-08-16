@@ -9,7 +9,7 @@ export interface AIGenerationOptions {
 @Injectable()
 export class AiGatewayService {
   private readonly logger = new Logger(AiGatewayService.name);
-  
+
   // MVP temporary/in-memory cache boundary.
   // The permanent storage technology remains UNRESOLVED (No QuestionBank).
   private readonly contentCache = new Map<string, any>();
@@ -48,12 +48,12 @@ export class AiGatewayService {
     // 2. Only call the AI provider when generation is actually necessary
     try {
       this.logger.log(`Generating content via provider: ${provider}`);
-      
+
       const content = await this.callProvider(provider, prompt);
-      
+
       // 3. Store and Reuse
       this.storeGeneratedContent(cacheKey, content);
-      
+
       return content as T;
     } catch (error) {
       // PHASE 3B-11: AI Failure handling
@@ -70,8 +70,10 @@ export class AiGatewayService {
   private async callProvider(provider: string, prompt: string): Promise<any> {
     // In a real implementation, this would switch between different API clients.
     // We are not hard-coding the system around any single provider.
-    // For production, if there's no actual API key configured, we must throw an error, 
+    // For production, if there's no actual API key configured, we must throw an error,
     // NOT mock it. Since we do not have an API key, we throw an error directly.
-    throw new Error('AI Provider not configured. Failing safely without fabricating content.');
+    throw new Error(
+      'AI Provider not configured. Failing safely without fabricating content.',
+    );
   }
 }

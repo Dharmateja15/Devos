@@ -1,7 +1,20 @@
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+
 export class SubmitGitHubRepoDto {
+  @IsString()
+  @IsNotEmpty()
   repoUrl: string;
+
+  @IsString()
+  @IsOptional()
   projectId?: string;
+
+  @IsString()
+  @IsOptional()
   taskId?: string;
+
+  @IsString()
+  @IsOptional()
   branch?: string;
 }
 

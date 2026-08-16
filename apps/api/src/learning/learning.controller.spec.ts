@@ -25,13 +25,22 @@ describe('Learning & Capabilities Controllers (Sub-Block 6C & 6D)', () => {
         {
           provide: CapabilityDiscoveryService,
           useValue: {
-            getDiscoveredCapabilities: jest.fn().mockResolvedValue({ userId: 'u1', totalDiscovered: 0, capabilities: [] }),
+            getDiscoveredCapabilities: jest.fn().mockResolvedValue({
+              userId: 'u1',
+              totalDiscovered: 0,
+              capabilities: [],
+            }),
           },
         },
         {
           provide: CapabilityFreshnessService,
           useValue: {
-            getCapabilityFreshness: jest.fn().mockResolvedValue({ userId: 'u1', evaluatedAt: new Date(), summary: {}, freshnessList: [] }),
+            getCapabilityFreshness: jest.fn().mockResolvedValue({
+              userId: 'u1',
+              evaluatedAt: new Date(),
+              summary: {},
+              freshnessList: [],
+            }),
           },
         },
         {
@@ -43,18 +52,32 @@ describe('Learning & Capabilities Controllers (Sub-Block 6C & 6D)', () => {
         {
           provide: RecommendationSuppressionService,
           useValue: {
-            getSuppressionStatus: jest.fn().mockResolvedValue({ userId: 'u1', totalConceptsEvaluated: 0, suppressionList: [] }),
+            getSuppressionStatus: jest.fn().mockResolvedValue({
+              userId: 'u1',
+              totalConceptsEvaluated: 0,
+              suppressionList: [],
+            }),
           },
         },
       ],
     }).compile();
 
     learningController = module.get<LearningController>(LearningController);
-    capabilitiesController = module.get<CapabilitiesController>(CapabilitiesController);
-    discoveryService = module.get<CapabilityDiscoveryService>(CapabilityDiscoveryService);
-    freshnessService = module.get<CapabilityFreshnessService>(CapabilityFreshnessService);
-    conflictResolutionService = module.get<ConflictResolutionService>(ConflictResolutionService);
-    suppressionService = module.get<RecommendationSuppressionService>(RecommendationSuppressionService);
+    capabilitiesController = module.get<CapabilitiesController>(
+      CapabilitiesController,
+    );
+    discoveryService = module.get<CapabilityDiscoveryService>(
+      CapabilityDiscoveryService,
+    );
+    freshnessService = module.get<CapabilityFreshnessService>(
+      CapabilityFreshnessService,
+    );
+    conflictResolutionService = module.get<ConflictResolutionService>(
+      ConflictResolutionService,
+    );
+    suppressionService = module.get<RecommendationSuppressionService>(
+      RecommendationSuppressionService,
+    );
   });
 
   it('learningController should be defined', () => {
@@ -66,13 +89,19 @@ describe('Learning & Capabilities Controllers (Sub-Block 6C & 6D)', () => {
   });
 
   it('getDiscoveredCapabilities delegates to discoveryService with req.user.id', async () => {
-    const res = await capabilitiesController.getDiscoveredCapabilities({ user: { id: 'u1' } });
+    const res = await capabilitiesController.getDiscoveredCapabilities({
+      user: { id: 'u1' },
+    });
     expect(res.userId).toBe('u1');
-    expect(discoveryService.getDiscoveredCapabilities).toHaveBeenCalledWith('u1');
+    expect(discoveryService.getDiscoveredCapabilities).toHaveBeenCalledWith(
+      'u1',
+    );
   });
 
   it('getCapabilityFreshness delegates to freshnessService with req.user.id', async () => {
-    const res = await capabilitiesController.getCapabilityFreshness({ user: { id: 'u1' } });
+    const res = await capabilitiesController.getCapabilityFreshness({
+      user: { id: 'u1' },
+    });
     expect(res.userId).toBe('u1');
     expect(freshnessService.getCapabilityFreshness).toHaveBeenCalledWith('u1');
   });
@@ -84,7 +113,9 @@ describe('Learning & Capabilities Controllers (Sub-Block 6C & 6D)', () => {
   });
 
   it('getRecommendationAdaptation delegates to suppressionService with req.user.id', async () => {
-    const res = await learningController.getRecommendationAdaptation({ user: { id: 'u1' } });
+    const res = await learningController.getRecommendationAdaptation({
+      user: { id: 'u1' },
+    });
     expect(res.userId).toBe('u1');
     expect(suppressionService.getSuppressionStatus).toHaveBeenCalledWith('u1');
   });

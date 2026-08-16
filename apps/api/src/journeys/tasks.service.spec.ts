@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { GamificationService } from '../gamification/gamification.service';
 import { AchievementsService } from '../gamification/achievements.service';
 
@@ -54,7 +58,9 @@ describe('TasksService', () => {
   describe('completeTask', () => {
     it('should rollback transaction if task not found', async () => {
       mockPrisma.task.findUnique.mockResolvedValue(null);
-      await expect(service.completeTask('user-1', 'task-1')).rejects.toThrow(NotFoundException);
+      await expect(service.completeTask('user-1', 'task-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should complete task, grant xp, and outbox event successfully', async () => {
@@ -68,10 +74,18 @@ describe('TasksService', () => {
 
       const result = await service.completeTask('user-1', 't1');
       expect(result.status).toBe('DONE');
-      expect(mockGamification.awardXp).toHaveBeenCalledWith(expect.anything(), 10, 't1', 'TASK_COMPLETION', expect.any(String));
-      expect(mockPrisma.outboxEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ eventType: 'task.completed' })
-      }));
+      expect(mockGamification.awardXp).toHaveBeenCalledWith(
+        expect.anything(),
+        10,
+        't1',
+        'TASK_COMPLETION',
+        expect.any(String),
+      );
+      expect(mockPrisma.outboxEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ eventType: 'task.completed' }),
+        }),
+      );
     });
 
     it('should not award duplicate XP if already DONE', async () => {
@@ -93,14 +107,29 @@ describe('TasksService', () => {
       });
       mockPrisma.task.update.mockResolvedValue({ id: 't1', status: 'DONE' });
       mockPrisma.task.count.mockResolvedValue(0); // milestone completes!
-      mockPrisma.milestone.findUnique.mockResolvedValue({ id: 'm1', status: 'IN_PROGRESS' });
-      
+      mockPrisma.milestone.findUnique.mockResolvedValue({
+        id: 'm1',
+        status: 'IN_PROGRESS',
+      });
+
       const result = await service.completeTask('user-1', 't1');
-      expect(mockGamification.awardXp).toHaveBeenCalledWith(expect.anything(), 50, 'm1', 'MILESTONE_COMPLETION', expect.any(String));
-      expect(mockPrisma.milestone.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'DONE' }) }));
-      expect(mockPrisma.outboxEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ eventType: 'milestone.completed' })
-      }));
+      expect(mockGamification.awardXp).toHaveBeenCalledWith(
+        expect.anything(),
+        50,
+        'm1',
+        'MILESTONE_COMPLETION',
+        expect.any(String),
+      );
+      expect(mockPrisma.milestone.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'DONE' }),
+        }),
+      );
+      expect(mockPrisma.outboxEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ eventType: 'milestone.completed' }),
+        }),
+      );
     });
 
     it('should not award milestone XP if milestone already DONE', async () => {
@@ -110,12 +139,27 @@ describe('TasksService', () => {
         journey: { userId: 'user-1' },
       });
       mockPrisma.task.update.mockResolvedValue({ id: 't1', status: 'DONE' });
-      mockPrisma.task.count.mockResolvedValue(0); 
-      mockPrisma.milestone.findUnique.mockResolvedValue({ id: 'm1', status: 'DONE' });
-      
+      mockPrisma.task.count.mockResolvedValue(0);
+      mockPrisma.milestone.findUnique.mockResolvedValue({
+        id: 'm1',
+        status: 'DONE',
+      });
+
       await service.completeTask('user-1', 't1');
-      expect(mockGamification.awardXp).toHaveBeenCalledWith(expect.anything(), 10, 't1', 'TASK_COMPLETION', expect.any(String)); // task xp awarded
-      expect(mockGamification.awardXp).not.toHaveBeenCalledWith(expect.anything(), 50, 'm1', 'MILESTONE_COMPLETION', expect.any(String)); // milestone xp NOT awarded
+      expect(mockGamification.awardXp).toHaveBeenCalledWith(
+        expect.anything(),
+        10,
+        't1',
+        'TASK_COMPLETION',
+        expect.any(String),
+      ); // task xp awarded
+      expect(mockGamification.awardXp).not.toHaveBeenCalledWith(
+        expect.anything(),
+        50,
+        'm1',
+        'MILESTONE_COMPLETION',
+        expect.any(String),
+      ); // milestone xp NOT awarded
       expect(mockPrisma.milestone.update).not.toHaveBeenCalled();
     });
   });
@@ -127,7 +171,7 @@ describe('TasksService', () => {
         id: 't1',
         status: 'DONE',
         completedAt: new Date(now.getTime() - 2 * 60000), // 2 mins ago
-        journey: { userId: 'user-1' }
+        journey: { userId: 'user-1' },
       });
       mockPrisma.task.update.mockResolvedValue({ status: 'IN_PROGRESS' });
       const result = await service.uncompleteTask('user-1', 't1');
@@ -140,9 +184,11 @@ describe('TasksService', () => {
         id: 't1',
         status: 'DONE',
         completedAt: new Date(now.getTime() - 10 * 60000), // 10 mins ago
-        journey: { userId: 'user-1' }
+        journey: { userId: 'user-1' },
       });
-      await expect(service.uncompleteTask('user-1', 't1')).rejects.toThrow(BadRequestException);
+      await expect(service.uncompleteTask('user-1', 't1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

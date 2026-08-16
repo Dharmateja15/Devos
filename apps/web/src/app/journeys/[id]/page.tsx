@@ -60,6 +60,9 @@ export default function JourneyDetailPage({ params }: { params: Promise<{ id: st
       <h1>{journey.title}</h1>
       <p>Progress: {journey.progress}% ({journey.completedTasks}/{journey.totalTasks} Tasks, {journey.completedMilestones}/{journey.totalMilestones} Milestones)</p>
       <button onClick={handleDelete}>Delete Journey</button>
+      <Link href={`/import?journeyId=${id}`} style={{ marginLeft: 10 }}>
+        Import CSV Tasks
+      </Link>
       
       <h2>Milestones</h2>
       <ul>

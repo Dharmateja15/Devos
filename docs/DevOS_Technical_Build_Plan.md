@@ -1,10 +1,17 @@
 # DevOS — Technical Build Plan
-**Version:** 1.1  
+**Version:** 1.2  
 **Prepared for:** Antigravity (Solo Developer, AI-Assisted)  
 **Date:** August 2026  
-**Stack:** TypeScript · NestJS · Next.js 15 · PostgreSQL · Redis · Prisma · Turborepo
+**Stack:** TypeScript · NestJS 11 · Next.js 16.3.0 · PostgreSQL 16 · Redis 7 · Prisma 5 · Turborepo 2.10
+
+> STATUS: CURRENT DOCUMENT  
+> Last reconciled: 2026-08-16  
+> Authority: Current repository implementation  
+>  
+> Historical planning assumptions that conflict with the repository are explicitly marked HISTORICAL.
 
 ---
+
 
 ## How to Read This Document
 

@@ -1,6 +1,14 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GamificationService, GamificationContext } from '../gamification/gamification.service';
+import {
+  GamificationService,
+  GamificationContext,
+} from '../gamification/gamification.service';
 import { AchievementsService } from '../gamification/achievements.service';
 import { IndependenceSignal } from '@prisma/client';
 
@@ -17,15 +25,23 @@ export class TasksService {
       where: { id: milestoneId },
       include: { journey: true },
     });
-    if (!milestone || milestone.deletedAt || milestone.journey.deletedAt) throw new NotFoundException('Milestone not found');
-    if (milestone.journey.userId !== userId) throw new ForbiddenException('You do not own this milestone');
+    if (!milestone || milestone.deletedAt || milestone.journey.deletedAt)
+      throw new NotFoundException('Milestone not found');
+    if (milestone.journey.userId !== userId)
+      throw new ForbiddenException('You do not own this milestone');
     return milestone;
   }
 
-  async createTask(userId: string, milestoneId: string, data: { title: string, description?: string }) {
+  async createTask(
+    userId: string,
+    milestoneId: string,
+    data: { title: string; description?: string },
+  ) {
     const milestone = await this.verifyMilestoneOwnership(userId, milestoneId);
 
-    const count = await this.prisma.task.count({ where: { milestoneId, deletedAt: null } });
+    const count = await this.prisma.task.count({
+      where: { milestoneId, deletedAt: null },
+    });
 
     return this.prisma.task.create({
       data: {
@@ -39,7 +55,12 @@ export class TasksService {
     });
   }
 
-  async getTasks(userId: string, milestoneId: string, limit: number = 20, cursor?: string) {
+  async getTasks(
+    userId: string,
+    milestoneId: string,
+    limit: number = 20,
+    cursor?: string,
+  ) {
     await this.verifyMilestoneOwnership(userId, milestoneId);
 
     const query: any = {
@@ -58,23 +79,39 @@ export class TasksService {
   async getTask(userId: string, id: string) {
     const task = await this.prisma.task.findUnique({
       where: { id },
-      include: { journey: true }
+      include: { journey: true },
     });
-    if (!task || task.deletedAt || task.journey.deletedAt) throw new NotFoundException('Task not found');
+    if (!task || task.deletedAt || task.journey.deletedAt)
+      throw new NotFoundException('Task not found');
     if (task.journey.userId !== userId) throw new ForbiddenException();
 
     return task;
   }
 
-  async updateTask(userId: string, id: string, data: Partial<{ title: string, description: string, status: any, sortOrder: number }>) {
-    const task = await this.prisma.task.findUnique({ where: { id }, include: { journey: true } });
-    if (!task || task.deletedAt || task.journey.deletedAt) throw new NotFoundException('Task not found');
+  async updateTask(
+    userId: string,
+    id: string,
+    data: Partial<{
+      title: string;
+      description: string;
+      status: any;
+      sortOrder: number;
+    }>,
+  ) {
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { journey: true },
+    });
+    if (!task || task.deletedAt || task.journey.deletedAt)
+      throw new NotFoundException('Task not found');
     if (task.journey.userId !== userId) throw new ForbiddenException();
 
-    // The primary completion operation is POST /complete. 
+    // The primary completion operation is POST /complete.
     // We forbid changing status to DONE or manipulating completedAt here.
     if (data.status === 'DONE') {
-      throw new BadRequestException('Use /complete endpoint to mark task as DONE');
+      throw new BadRequestException(
+        'Use /complete endpoint to mark task as DONE',
+      );
     }
 
     const validStatuses = ['TODO', 'IN_PROGRESS', 'SKIPPED'];
@@ -89,8 +126,12 @@ export class TasksService {
   }
 
   async deleteTask(userId: string, id: string) {
-    const task = await this.prisma.task.findUnique({ where: { id }, include: { journey: true } });
-    if (!task || task.deletedAt || task.journey.deletedAt) throw new NotFoundException('Task not found');
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { journey: true },
+    });
+    if (!task || task.deletedAt || task.journey.deletedAt)
+      throw new NotFoundException('Task not found');
     if (task.journey.userId !== userId) throw new ForbiddenException();
 
     return this.prisma.task.update({
@@ -99,9 +140,17 @@ export class TasksService {
     });
   }
 
-  async completeTask(userId: string, id: string, independenceSignal?: IndependenceSignal) {
-    const task = await this.prisma.task.findUnique({ where: { id }, include: { journey: true } });
-    if (!task || task.deletedAt || task.journey.deletedAt) throw new NotFoundException('Task not found');
+  async completeTask(
+    userId: string,
+    id: string,
+    independenceSignal?: IndependenceSignal,
+  ) {
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { journey: true },
+    });
+    if (!task || task.deletedAt || task.journey.deletedAt)
+      throw new NotFoundException('Task not found');
     if (task.journey.userId !== userId) throw new ForbiddenException();
 
     // Idempotency
@@ -109,7 +158,10 @@ export class TasksService {
       return task;
     }
 
-    if (independenceSignal && !Object.values(IndependenceSignal).includes(independenceSignal)) {
+    if (
+      independenceSignal &&
+      !Object.values(IndependenceSignal).includes(independenceSignal)
+    ) {
       throw new BadRequestException('Invalid independence signal');
     }
 
@@ -124,13 +176,26 @@ export class TasksService {
         },
       });
 
-      const ctx: GamificationContext = { userId, journeyId: task.journeyId, prismaTx: tx };
+      const ctx: GamificationContext = {
+        userId,
+        journeyId: task.journeyId,
+        prismaTx: tx,
+      };
 
       // 2. Award Task XP (+10)
-      const xpAwarded = await this.gamification.awardXp(ctx, 10, task.id, 'TASK_COMPLETION', 'Task completed');
+      const xpAwarded = await this.gamification.awardXp(
+        ctx,
+        10,
+        task.id,
+        'TASK_COMPLETION',
+        'Task completed',
+      );
 
       // 3. Process Streak
-      const currentStreak = await this.gamification.processStreak(ctx, new Date());
+      const currentStreak = await this.gamification.processStreak(
+        ctx,
+        new Date(),
+      );
       await this.achievements.checkStreakAchievements(ctx, currentStreak);
 
       // 4. Evaluate Task Achievements
@@ -151,7 +216,9 @@ export class TasksService {
 
       if (incompleteTasksCount === 0) {
         // Complete the milestone
-        const milestone = await tx.milestone.findUnique({ where: { id: task.milestoneId } });
+        const milestone = await tx.milestone.findUnique({
+          where: { id: task.milestoneId },
+        });
         if (milestone && milestone.status !== 'DONE') {
           await tx.milestone.update({
             where: { id: task.milestoneId },
@@ -160,11 +227,17 @@ export class TasksService {
               completedAt: new Date(),
             },
           });
-          
+
           milestoneCompleted = true;
           // Award +50 XP
-          milestoneXpAwarded = await this.gamification.awardXp(ctx, 50, task.milestoneId, 'MILESTONE_COMPLETION', 'Milestone completed');
-          
+          milestoneXpAwarded = await this.gamification.awardXp(
+            ctx,
+            50,
+            task.milestoneId,
+            'MILESTONE_COMPLETION',
+            'Milestone completed',
+          );
+
           // Evaluate First Milestone Achievement
           await this.achievements.evaluateAchievement(ctx, 'first_milestone');
         }
@@ -224,8 +297,12 @@ export class TasksService {
   }
 
   async uncompleteTask(userId: string, id: string) {
-    const task = await this.prisma.task.findUnique({ where: { id }, include: { journey: true } });
-    if (!task || task.deletedAt || task.journey.deletedAt) throw new NotFoundException('Task not found');
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { journey: true },
+    });
+    if (!task || task.deletedAt || task.journey.deletedAt)
+      throw new NotFoundException('Task not found');
     if (task.journey.userId !== userId) throw new ForbiddenException();
 
     if (task.status !== 'DONE' || !task.completedAt) {
@@ -237,7 +314,9 @@ export class TasksService {
     const fiveMinutes = 5 * 60 * 1000;
 
     if (now - completedAt > fiveMinutes) {
-      throw new BadRequestException('Uncompletion is only allowed within 5 minutes of completion');
+      throw new BadRequestException(
+        'Uncompletion is only allowed within 5 minutes of completion',
+      );
     }
 
     return this.prisma.task.update({
@@ -245,7 +324,7 @@ export class TasksService {
       data: {
         status: 'TODO', // Restore to active default
         completedAt: null,
-      }
+      },
     });
   }
 }

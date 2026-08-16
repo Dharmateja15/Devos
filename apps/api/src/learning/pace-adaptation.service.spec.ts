@@ -9,7 +9,8 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
   let prismaService: any;
 
   const now = new Date();
-  const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const daysAgo = (days: number) =>
+    new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
   const mockRoadmap = {
     id: 'rm-1',
@@ -24,7 +25,12 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
       roadmap: {
         findUnique: jest.fn().mockImplementation(({ where }: any) => {
           if (where.id === 'rm-1') return Promise.resolve(mockRoadmap);
-          if (where.id === 'rm-other') return Promise.resolve({ ...mockRoadmap, id: 'rm-other', userId: 'user-other' });
+          if (where.id === 'rm-other')
+            return Promise.resolve({
+              ...mockRoadmap,
+              id: 'rm-other',
+              userId: 'user-other',
+            });
           return Promise.resolve(null);
         }),
       },
@@ -54,7 +60,12 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
 
     it('2. 1 task completed / 14d -> weeklyVelocity = 0.5 -> LOW_ACTIVITY (Batch size = 1)', async () => {
       prismaService.task.findMany.mockResolvedValue([
-        { id: 't-1', status: TaskStatus.DONE, createdAt: daysAgo(5), completedAt: daysAgo(2) },
+        {
+          id: 't-1',
+          status: TaskStatus.DONE,
+          createdAt: daysAgo(5),
+          completedAt: daysAgo(2),
+        },
       ]);
 
       const res = await service.getPaceAdaptation('user-1');
@@ -66,9 +77,24 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
 
     it('3. 3 tasks completed / 14d -> weeklyVelocity = 1.5 -> LOW_ACTIVITY (Batch size = 1)', async () => {
       prismaService.task.findMany.mockResolvedValue([
-        { id: 't-1', status: TaskStatus.DONE, createdAt: daysAgo(10), completedAt: daysAgo(8) },
-        { id: 't-2', status: TaskStatus.DONE, createdAt: daysAgo(7), completedAt: daysAgo(5) },
-        { id: 't-3', status: TaskStatus.DONE, createdAt: daysAgo(4), completedAt: daysAgo(2) },
+        {
+          id: 't-1',
+          status: TaskStatus.DONE,
+          createdAt: daysAgo(10),
+          completedAt: daysAgo(8),
+        },
+        {
+          id: 't-2',
+          status: TaskStatus.DONE,
+          createdAt: daysAgo(7),
+          completedAt: daysAgo(5),
+        },
+        {
+          id: 't-3',
+          status: TaskStatus.DONE,
+          createdAt: daysAgo(4),
+          completedAt: daysAgo(2),
+        },
       ]);
 
       const res = await service.getPaceAdaptation('user-1');
@@ -143,7 +169,10 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
         createdAt: daysAgo(10),
       }));
 
-      prismaService.task.findMany.mockResolvedValue([...completedTasks, ...skippedTasks]);
+      prismaService.task.findMany.mockResolvedValue([
+        ...completedTasks,
+        ...skippedTasks,
+      ]);
 
       const res = await service.getPaceAdaptation('user-1');
 
@@ -162,11 +191,24 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
         completedAt: daysAgo(i + 1),
       }));
       const overdueTasks = [
-        { id: 'to-1', status: TaskStatus.TODO, dueDate: daysAgo(2), createdAt: daysAgo(10) },
-        { id: 'to-2', status: TaskStatus.TODO, dueDate: daysAgo(1), createdAt: daysAgo(10) },
+        {
+          id: 'to-1',
+          status: TaskStatus.TODO,
+          dueDate: daysAgo(2),
+          createdAt: daysAgo(10),
+        },
+        {
+          id: 'to-2',
+          status: TaskStatus.TODO,
+          dueDate: daysAgo(1),
+          createdAt: daysAgo(10),
+        },
       ];
 
-      prismaService.task.findMany.mockResolvedValue([...completedTasks, ...overdueTasks]);
+      prismaService.task.findMany.mockResolvedValue([
+        ...completedTasks,
+        ...overdueTasks,
+      ]);
 
       const res = await service.getPaceAdaptation('user-1');
 
@@ -231,7 +273,7 @@ describe('PaceAdaptationService (Sub-Block 6D - Requirement Y)', () => {
 
     it('13. Roadmap Pace Adaptation checks ownership and throws ForbiddenException for non-owners', async () => {
       await expect(
-        service.getRoadmapPaceAdaptation('user-1', 'rm-other')
+        service.getRoadmapPaceAdaptation('user-1', 'rm-other'),
       ).rejects.toThrow(ForbiddenException);
     });
   });

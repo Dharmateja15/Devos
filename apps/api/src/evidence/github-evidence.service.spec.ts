@@ -1,9 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GitHubEvidenceService, GitHubVerificationStatus } from './github-evidence.service';
+import {
+  GitHubEvidenceService,
+  GitHubVerificationStatus,
+} from './github-evidence.service';
 import { GitHubClientAdapter } from './github-client.adapter';
 import { PrismaService } from '../prisma/prisma.service';
 import { EvidenceType, AuthProvider, RoadmapNodeType } from '@prisma/client';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 
 describe('GitHubEvidenceService (Sub-Block 6B)', () => {
   let service: GitHubEvidenceService;
@@ -12,11 +19,18 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
 
   beforeEach(async () => {
     prismaService = {
-      project: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      project: {
+        findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       task: { findUnique: jest.fn() },
       roadmap: { findMany: jest.fn().mockResolvedValue([]) },
       oAuthAccount: { findFirst: jest.fn() },
-      evidenceItem: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+      evidenceItem: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
       outboxEvent: { create: jest.fn() },
     };
 
@@ -34,22 +48,45 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
 
   describe('SSRF Safety & URL Validation', () => {
     it('1. Accepts valid HTTPS github.com URL', () => {
-      const parsed = adapter.parseAndSanitizeGitHubUrl('https://github.com/octocat/Hello-World');
+      const parsed = adapter.parseAndSanitizeGitHubUrl(
+        'https://github.com/octocat/Hello-World',
+      );
       expect(parsed).toEqual({ owner: 'octocat', repo: 'Hello-World' });
     });
 
     it('2. Rejects HTTP, alternate hostnames, custom ports, or userinfo', () => {
-      expect(() => adapter.parseAndSanitizeGitHubUrl('http://github.com/octocat/Hello-World')).toThrow(BadRequestException);
-      expect(() => adapter.parseAndSanitizeGitHubUrl('https://malicious.com/octocat/Hello-World')).toThrow(BadRequestException);
-      expect(() => adapter.parseAndSanitizeGitHubUrl('https://github.com:8080/octocat/Hello-World')).toThrow(BadRequestException);
-      expect(() => adapter.parseAndSanitizeGitHubUrl('https://user:pass@github.com/octocat/Hello-World')).toThrow(BadRequestException);
+      expect(() =>
+        adapter.parseAndSanitizeGitHubUrl(
+          'http://github.com/octocat/Hello-World',
+        ),
+      ).toThrow(BadRequestException);
+      expect(() =>
+        adapter.parseAndSanitizeGitHubUrl(
+          'https://malicious.com/octocat/Hello-World',
+        ),
+      ).toThrow(BadRequestException);
+      expect(() =>
+        adapter.parseAndSanitizeGitHubUrl(
+          'https://github.com:8080/octocat/Hello-World',
+        ),
+      ).toThrow(BadRequestException);
+      expect(() =>
+        adapter.parseAndSanitizeGitHubUrl(
+          'https://user:pass@github.com/octocat/Hello-World',
+        ),
+      ).toThrow(BadRequestException);
     });
   });
 
   describe('Identity Verification Model & Email Match Rule', () => {
     it('1. Marks REPOSITORY_OWNER_VERIFIED when OAuth providerId matches repo owner', async () => {
-      prismaService.oAuthAccount.findFirst.mockResolvedValue({ providerId: 'octocat', accessToken: 'token-1' });
-      prismaService.evidenceItem.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'ev-1', ...data }));
+      prismaService.oAuthAccount.findFirst.mockResolvedValue({
+        providerId: 'octocat',
+        accessToken: 'token-1',
+      });
+      prismaService.evidenceItem.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: 'ev-1', ...data }),
+      );
 
       jest.spyOn(adapter, 'fetchRepoMetadata').mockResolvedValue({
         owner: 'octocat',
@@ -69,15 +106,24 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
 
       jest.spyOn(adapter, 'fetchManifestContents').mockResolvedValue([]);
 
-      const res: any = await service.submitGitHubRepository('user-1', { repoUrl: 'https://github.com/octocat/repo-1' });
+      const res: any = await service.submitGitHubRepository('user-1', {
+        repoUrl: 'https://github.com/octocat/repo-1',
+      });
 
       expect(res.verified).toBe(true);
-      expect(res.metadata.verificationStatus).toBe(GitHubVerificationStatus.REPOSITORY_OWNER_VERIFIED);
+      expect(res.metadata.verificationStatus).toBe(
+        GitHubVerificationStatus.REPOSITORY_OWNER_VERIFIED,
+      );
     });
 
     it('2. Email match alone does NOT produce verified = true or COMMIT_AUTHOR_MATCH status', async () => {
-      prismaService.oAuthAccount.findFirst.mockResolvedValue({ providerId: 'user-connected-id', accessToken: 'token-1' });
-      prismaService.evidenceItem.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'ev-2', ...data }));
+      prismaService.oAuthAccount.findFirst.mockResolvedValue({
+        providerId: 'user-connected-id',
+        accessToken: 'token-1',
+      });
+      prismaService.evidenceItem.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: 'ev-2', ...data }),
+      );
 
       jest.spyOn(adapter, 'fetchRepoMetadata').mockResolvedValue({
         owner: 'some-org',
@@ -99,10 +145,14 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
 
       jest.spyOn(adapter, 'fetchManifestContents').mockResolvedValue([]);
 
-      const res: any = await service.submitGitHubRepository('user-1', { repoUrl: 'https://github.com/some-org/repo-2' });
+      const res: any = await service.submitGitHubRepository('user-1', {
+        repoUrl: 'https://github.com/some-org/repo-2',
+      });
 
       expect(res.verified).toBe(false);
-      expect(res.metadata.verificationStatus).toBe(GitHubVerificationStatus.PUBLIC_REPOSITORY_SUBMISSION);
+      expect(res.metadata.verificationStatus).toBe(
+        GitHubVerificationStatus.PUBLIC_REPOSITORY_SUBMISSION,
+      );
       expect(res.metadata.identityNotes).toContain('Commit email');
     });
   });
@@ -118,7 +168,7 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
         service.submitGitHubRepository('user-1', {
           repoUrl: 'https://github.com/owner/repo',
           projectId: 'p-other',
-        })
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -132,14 +182,16 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
         service.submitGitHubRepository('user-1', {
           repoUrl: 'https://github.com/owner/repo',
           taskId: 't-other',
-        })
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('Deduplication & Technology Detection', () => {
     it('1. Detects technologies from manifests accurately', async () => {
-      prismaService.evidenceItem.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'ev-tech', ...data }));
+      prismaService.evidenceItem.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: 'ev-tech', ...data }),
+      );
 
       jest.spyOn(adapter, 'fetchRepoMetadata').mockResolvedValue({
         owner: 'owner',
@@ -150,14 +202,22 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
         htmlUrl: 'https://github.com/owner/nest-app',
       });
 
-      jest.spyOn(adapter, 'fetchCommitMetadata').mockResolvedValue({ sha: 'abc123' });
+      jest
+        .spyOn(adapter, 'fetchCommitMetadata')
+        .mockResolvedValue({ sha: 'abc123' });
 
       jest.spyOn(adapter, 'fetchManifestContents').mockResolvedValue([
-        { filename: 'package.json', content: '{"dependencies": {"typescript": "^5.0", "@nestjs/core": "^10.0"}}' },
+        {
+          filename: 'package.json',
+          content:
+            '{"dependencies": {"typescript": "^5.0", "@nestjs/core": "^10.0"}}',
+        },
         { filename: 'Dockerfile', content: 'FROM node:18' },
       ]);
 
-      const res: any = await service.submitGitHubRepository('user-1', { repoUrl: 'https://github.com/owner/nest-app' });
+      const res: any = await service.submitGitHubRepository('user-1', {
+        repoUrl: 'https://github.com/owner/nest-app',
+      });
 
       expect(res.metadata.detectedTechnologies).toContain('TypeScript');
       expect(res.metadata.detectedTechnologies).toContain('NestJS');
@@ -165,8 +225,13 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
     });
 
     it('2. Is idempotent and updates existing repository-level evidence item', async () => {
-      prismaService.evidenceItem.findFirst.mockResolvedValue({ id: 'ev-existing', githubRepo: 'owner/repo' });
-      prismaService.evidenceItem.update.mockImplementation(({ where, data }: any) => Promise.resolve({ id: where.id, ...data }));
+      prismaService.evidenceItem.findFirst.mockResolvedValue({
+        id: 'ev-existing',
+        githubRepo: 'owner/repo',
+      });
+      prismaService.evidenceItem.update.mockImplementation(
+        ({ where, data }: any) => Promise.resolve({ id: where.id, ...data }),
+      );
 
       jest.spyOn(adapter, 'fetchRepoMetadata').mockResolvedValue({
         owner: 'owner',
@@ -177,10 +242,14 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
         htmlUrl: 'https://github.com/owner/repo',
       });
 
-      jest.spyOn(adapter, 'fetchCommitMetadata').mockResolvedValue({ sha: 'abc123' });
+      jest
+        .spyOn(adapter, 'fetchCommitMetadata')
+        .mockResolvedValue({ sha: 'abc123' });
       jest.spyOn(adapter, 'fetchManifestContents').mockResolvedValue([]);
 
-      const res = await service.submitGitHubRepository('user-1', { repoUrl: 'https://github.com/owner/repo' });
+      const res = await service.submitGitHubRepository('user-1', {
+        repoUrl: 'https://github.com/owner/repo',
+      });
 
       expect(res.id).toBe('ev-existing');
       expect(prismaService.evidenceItem.update).toHaveBeenCalled();
@@ -190,7 +259,10 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
 
   describe('Full Passive GitHub Discovery & Relevance Filter', () => {
     it('1. Enumerates connected account repos and creates EvidenceItem for tech-overlapping repo', async () => {
-      prismaService.oAuthAccount.findFirst.mockResolvedValue({ providerId: 'user1-gh', accessToken: 'token-oauth-123' });
+      prismaService.oAuthAccount.findFirst.mockResolvedValue({
+        providerId: 'user1-gh',
+        accessToken: 'token-oauth-123',
+      });
 
       prismaService.roadmap.findMany.mockResolvedValue([
         {
@@ -236,17 +308,28 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
         },
       ]);
 
-      jest.spyOn(adapter, 'fetchManifestContents').mockImplementation(async (owner, repo) => {
-        if (repo === 'nest-backend') {
-          return [{ filename: 'package.json', content: '{"dependencies": {"@nestjs/core": "^10.0"}}' }];
-        }
-        return []; // Cooking blog has 0 matching manifest tech
-      });
+      jest
+        .spyOn(adapter, 'fetchManifestContents')
+        .mockImplementation(async (owner, repo) => {
+          if (repo === 'nest-backend') {
+            return [
+              {
+                filename: 'package.json',
+                content: '{"dependencies": {"@nestjs/core": "^10.0"}}',
+              },
+            ];
+          }
+          return []; // Cooking blog has 0 matching manifest tech
+        });
 
-      jest.spyOn(adapter, 'fetchCommitMetadata').mockResolvedValue({ sha: 'commit-pass-1' });
+      jest
+        .spyOn(adapter, 'fetchCommitMetadata')
+        .mockResolvedValue({ sha: 'commit-pass-1' });
 
       prismaService.evidenceItem.findFirst.mockResolvedValue(null);
-      prismaService.evidenceItem.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'ev-passive-1', ...data }));
+      prismaService.evidenceItem.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: 'ev-passive-1', ...data }),
+      );
 
       const res = await service.observePassiveRepositories('user-1');
 
@@ -257,7 +340,7 @@ describe('GitHubEvidenceService (Sub-Block 6B)', () => {
           data: expect.objectContaining({
             githubRepo: 'user1-gh/nest-backend',
           }),
-        })
+        }),
       );
     });
 

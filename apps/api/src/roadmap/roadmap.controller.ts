@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { RoadmapService } from './roadmap.service';
 import { RoadmapReconciliationService } from './roadmap-reconciliation.service';
 import { RoadmapMaterializationService } from './roadmap-materialization.service';
@@ -9,7 +19,11 @@ import { PaceAdaptationService } from '../learning/pace-adaptation.service';
 import type { MaterializeOptions } from './roadmap-materialization.service';
 import { ImportRoadmapDto } from './dto/import-roadmap.dto';
 import { UpdateMappingDto } from './dto/update-mapping.dto';
-import { GoalChangeImpactRequestDto, DecomposeNodeRequestDto, DismissDecompositionRequestDto } from './dto/roadmap-intelligence.dto';
+import {
+  GoalChangeImpactRequestDto,
+  DecomposeNodeRequestDto,
+  DismissDecompositionRequestDto,
+} from './dto/roadmap-intelligence.dto';
 import { RoadmapStatus, RoadmapPriority } from '@prisma/client';
 
 @Controller('api/v1/roadmaps')
@@ -25,10 +39,7 @@ export class RoadmapController {
   ) {}
 
   @Post('import')
-  async importRoadmap(
-    @Req() req: any,
-    @Body() importDto: ImportRoadmapDto,
-  ) {
+  async importRoadmap(@Req() req: any, @Body() importDto: ImportRoadmapDto) {
     const userId = req?.user?.id || 'default-user-id';
     return this.roadmapService.importRoadmap(userId, importDto);
   }
@@ -50,10 +61,7 @@ export class RoadmapController {
   }
 
   @Get(':id')
-  async getRoadmapById(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async getRoadmapById(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     return this.roadmapService.getRoadmapById(userId, id);
   }
@@ -79,32 +87,26 @@ export class RoadmapController {
   }
 
   @Delete(':id')
-  async softDeleteRoadmap(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async softDeleteRoadmap(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     return this.roadmapService.softDeleteRoadmap(userId, id);
   }
 
   @Post(':id/reopen')
-  async reopenRoadmap(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async reopenRoadmap(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     return this.roadmapService.reopenRoadmap(userId, id);
   }
 
   @Post(':id/reconcile')
-  async reconcile(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async reconcile(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     const roadmap = await this.roadmapService.getRoadmapById(userId, id);
     const activeSnapshot = roadmap.snapshots[0];
-    return this.reconciliationService.reconcileSnapshot(userId, activeSnapshot.id);
+    return this.reconciliationService.reconcileSnapshot(
+      userId,
+      activeSnapshot.id,
+    );
   }
 
   @Post(':id/materialize')
@@ -114,14 +116,15 @@ export class RoadmapController {
     @Body() options: MaterializeOptions,
   ) {
     const userId = req?.user?.id || 'default-user-id';
-    return this.materializationService.materializeActionableTasks(userId, id, options);
+    return this.materializationService.materializeActionableTasks(
+      userId,
+      id,
+      options,
+    );
   }
 
   @Get(':id/completion-candidate')
-  async checkCompletionCandidate(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async checkCompletionCandidate(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     return this.roadmapService.checkCompletionCandidate(userId, id);
   }
@@ -210,10 +213,7 @@ export class RoadmapController {
   // --- SUB-BLOCK 6B ENDPOINTS ---
 
   @Get(':id/project-gaps')
-  async analyzeProjectGaps(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async analyzeProjectGaps(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     return this.projectGapService.analyzeProjectGaps(userId, id);
   }
@@ -226,16 +226,16 @@ export class RoadmapController {
     @Param('id') id: string,
   ) {
     const userId = req?.user?.id || 'default-user-id';
-    return this.freshnessRecommendationService.getRoadmapFreshnessRecommendations(userId, id);
+    return this.freshnessRecommendationService.getRoadmapFreshnessRecommendations(
+      userId,
+      id,
+    );
   }
 
   // --- SUB-BLOCK 6D ENDPOINTS ---
 
   @Get(':id/adaptation')
-  async getRoadmapPaceAdaptation(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async getRoadmapPaceAdaptation(@Req() req: any, @Param('id') id: string) {
     const userId = req?.user?.id || 'default-user-id';
     return this.paceAdaptationService.getRoadmapPaceAdaptation(userId, id);
   }

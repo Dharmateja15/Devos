@@ -15,14 +15,20 @@ describe('AiGatewayService', () => {
   // 20. AI unavailable does not fabricate content
   it('Fails safely and returns null if AI provider is not configured or fails (no fabrication)', async () => {
     // In our implementation, if provider is missing, it throws an error in callProvider, caught by generateContent.
-    const result = await service.generateContent({ cacheKey: 'test', prompt: 'test' });
+    const result = await service.generateContent({
+      cacheKey: 'test',
+      prompt: 'test',
+    });
     expect(result).toBeNull();
   });
 
   // 21. Cached content is reused
   it('Reuses cached content without calling provider', async () => {
     service.storeGeneratedContent('key1', { generatedText: 'cached' });
-    const result = await service.generateContent({ cacheKey: 'key1', prompt: 'test' });
+    const result = await service.generateContent({
+      cacheKey: 'key1',
+      prompt: 'test',
+    });
     expect(result).toEqual({ generatedText: 'cached' });
   });
 });

@@ -6,7 +6,7 @@ import { CapabilityFreshnessService } from './capability-freshness.service';
 export class CapabilitiesController {
   constructor(
     private readonly discoveryService: CapabilityDiscoveryService,
-    private readonly freshnessService: CapabilityFreshnessService
+    private readonly freshnessService: CapabilityFreshnessService,
   ) {}
 
   @Get('discovered')

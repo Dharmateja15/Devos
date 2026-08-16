@@ -14,8 +14,16 @@ describe('CapabilityDiscoveryService (Sub-Block 6C - Requirement K)', () => {
       task: { findMany: jest.fn().mockResolvedValue([]) },
       learnerConceptState: { findMany: jest.fn().mockResolvedValue([]) },
       roadmapMapping: { findMany: jest.fn().mockResolvedValue([]) },
-      concept: { findMany: jest.fn().mockResolvedValue([{ id: 'c-ts', title: 'TypeScript' }]) },
-      skill: { findMany: jest.fn().mockResolvedValue([{ id: 's-nest', name: 'NestJS' }]) },
+      concept: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'c-ts', title: 'TypeScript' }]),
+      },
+      skill: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 's-nest', name: 'NestJS' }]),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -25,7 +33,9 @@ describe('CapabilityDiscoveryService (Sub-Block 6C - Requirement K)', () => {
       ],
     }).compile();
 
-    service = module.get<CapabilityDiscoveryService>(CapabilityDiscoveryService);
+    service = module.get<CapabilityDiscoveryService>(
+      CapabilityDiscoveryService,
+    );
   });
 
   describe('Signal Strength Tiers & Non-Mutation', () => {
@@ -120,7 +130,9 @@ describe('CapabilityDiscoveryService (Sub-Block 6C - Requirement K)', () => {
 
       const res = await service.getDiscoveredCapabilities('user-1');
 
-      const gqlCap = res.capabilities.find(c => c.capabilityTitle === 'GraphQL');
+      const gqlCap = res.capabilities.find(
+        (c) => c.capabilityTitle === 'GraphQL',
+      );
       expect(gqlCap).toBeDefined();
       expect(gqlCap?.capabilityId).toBe('tech-graphql');
       expect(gqlCap?.isCanonical).toBe(false);
@@ -136,14 +148,23 @@ describe('CapabilityDiscoveryService (Sub-Block 6C - Requirement K)', () => {
 
   describe('Multi-User Isolation', () => {
     it('User A capabilities are isolated from User B', async () => {
-      prismaService.evidenceItem.findMany.mockImplementation(({ where }: any) => {
-        if (where.userId === 'user-1') {
-          return Promise.resolve([
-            { id: 'ev-u1', verified: true, metadata: { detectedTechnologies: ['TypeScript'], verificationStatus: 'REPOSITORY_OWNER_VERIFIED' } },
-          ]);
-        }
-        return Promise.resolve([]); // User 2 has zero evidence
-      });
+      prismaService.evidenceItem.findMany.mockImplementation(
+        ({ where }: any) => {
+          if (where.userId === 'user-1') {
+            return Promise.resolve([
+              {
+                id: 'ev-u1',
+                verified: true,
+                metadata: {
+                  detectedTechnologies: ['TypeScript'],
+                  verificationStatus: 'REPOSITORY_OWNER_VERIFIED',
+                },
+              },
+            ]);
+          }
+          return Promise.resolve([]); // User 2 has zero evidence
+        },
+      );
 
       const resUser2 = await service.getDiscoveredCapabilities('user-2');
 

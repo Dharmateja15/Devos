@@ -41,7 +41,9 @@ describe('MilestonesService', () => {
         deletedAt: null,
       } as any);
 
-      await expect(service.createMilestone('u2', 'j1', { title: 'Test' })).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.createMilestone('u2', 'j1', { title: 'Test' }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -53,7 +55,9 @@ describe('MilestonesService', () => {
         deletedAt: null,
       } as any);
 
-      await expect(service.getMilestone('u2', 'm1')).rejects.toThrow(ForbiddenException);
+      await expect(service.getMilestone('u2', 'm1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

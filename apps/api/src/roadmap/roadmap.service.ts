@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoadmapShAdapter } from './adapters/roadmapsh.adapter';
 import { CsvAdapter } from './adapters/csv.adapter';
@@ -22,13 +28,17 @@ export class RoadmapService {
   }
 
   async importRoadmap(userId: string, importDto: ImportRoadmapDto) {
-    const adapter = this.adapters.find(a => a.canHandle(importDto.input));
+    const adapter = this.adapters.find((a) => a.canHandle(importDto.input));
     if (!adapter) {
-      throw new BadRequestException('No suitable adapter found for the given roadmap input.');
+      throw new BadRequestException(
+        'No suitable adapter found for the given roadmap input.',
+      );
     }
 
     const normalized = await adapter.normalize(importDto.input);
-    const sourceUrl = normalized.sourceUrl || (importDto.input.startsWith('http') ? importDto.input : null);
+    const sourceUrl =
+      normalized.sourceUrl ||
+      (importDto.input.startsWith('http') ? importDto.input : null);
     const sourceName = importDto.sourceName || normalized.sourceName;
 
     let targetRoadmap: any = null;
@@ -38,7 +48,9 @@ export class RoadmapService {
         where: { id: importDto.targetRoadmapId },
       });
       if (!targetRoadmap || targetRoadmap.userId !== userId) {
-        throw new ForbiddenException('Specified target roadmap does not exist or belong to user.');
+        throw new ForbiddenException(
+          'Specified target roadmap does not exist or belong to user.',
+        );
       }
     } else if (!importDto.createNewRoadmap) {
       // Deterministic Identity Matching Hierarchy
@@ -59,8 +71,9 @@ export class RoadmapService {
         } else if (urlMatches.length > 1) {
           throw new ConflictException({
             code: 'AMBIGUOUS_ROADMAP_MATCH',
-            message: 'Multiple existing roadmaps match this source URL. Select which roadmap to update or create a new one.',
-            candidates: urlMatches.map(c => ({
+            message:
+              'Multiple existing roadmaps match this source URL. Select which roadmap to update or create a new one.',
+            candidates: urlMatches.map((c) => ({
               id: c.id,
               title: c.title,
               status: c.status,
@@ -87,8 +100,9 @@ export class RoadmapService {
         } else if (nameMatches.length > 1) {
           throw new ConflictException({
             code: 'AMBIGUOUS_ROADMAP_MATCH',
-            message: 'Multiple existing roadmaps match this title. Select which roadmap to update or create a new one.',
-            candidates: nameMatches.map(c => ({
+            message:
+              'Multiple existing roadmaps match this title. Select which roadmap to update or create a new one.',
+            candidates: nameMatches.map((c) => ({
               id: c.id,
               title: c.title,
               status: c.status,
@@ -126,7 +140,8 @@ export class RoadmapService {
         sourceType: normalized.sourceType,
         sourceUrl,
         sourceName,
-        sourceVersion: importDto.sourceVersion || normalized.sourceVersion || '1.0.0',
+        sourceVersion:
+          importDto.sourceVersion || normalized.sourceVersion || '1.0.0',
         metadata: normalized.metadata || {},
       },
     });
@@ -167,9 +182,13 @@ export class RoadmapService {
         data: {
           roadmapNodeId: createdNode.id,
           userId,
-          mappingStatus: priorMapping ? priorMapping.mappingStatus : MappingStatus.NEW,
+          mappingStatus: priorMapping
+            ? priorMapping.mappingStatus
+            : MappingStatus.NEW,
           confidenceScore: priorMapping ? priorMapping.confidenceScore : 0.0,
-          userConfirmation: priorMapping ? priorMapping.userConfirmation : false,
+          userConfirmation: priorMapping
+            ? priorMapping.userConfirmation
+            : false,
           journeyId: priorMapping?.journeyId || null,
           taskId: priorMapping?.taskId || null,
           projectId: priorMapping?.projectId || null,
@@ -236,13 +255,19 @@ export class RoadmapService {
     }
 
     if (roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to access this roadmap.');
+      throw new ForbiddenException(
+        'You do not have permission to access this roadmap.',
+      );
     }
 
     return roadmap;
   }
 
-  async updateRoadmapStatus(userId: string, roadmapId: string, status: RoadmapStatus) {
+  async updateRoadmapStatus(
+    userId: string,
+    roadmapId: string,
+    status: RoadmapStatus,
+  ) {
     const roadmap = await this.getRoadmapById(userId, roadmapId);
 
     return this.prisma.roadmap.update({
@@ -251,7 +276,11 @@ export class RoadmapService {
     });
   }
 
-  async updateRoadmapPriority(userId: string, roadmapId: string, priority: RoadmapPriority) {
+  async updateRoadmapPriority(
+    userId: string,
+    roadmapId: string,
+    priority: RoadmapPriority,
+  ) {
     const roadmap = await this.getRoadmapById(userId, roadmapId);
 
     return this.prisma.roadmap.update({
@@ -284,7 +313,9 @@ export class RoadmapService {
     });
 
     if (!mapping || mapping.userId !== userId) {
-      throw new ForbiddenException('Roadmap mapping not found or access denied.');
+      throw new ForbiddenException(
+        'Roadmap mapping not found or access denied.',
+      );
     }
 
     return this.prisma.roadmapMapping.update({
@@ -305,18 +336,27 @@ export class RoadmapService {
     const latestSnapshot = roadmap.snapshots[0];
 
     if (!latestSnapshot) {
-      return { isCandidate: false, completedCount: 0, totalCount: 0, remainingNodes: [] };
+      return {
+        isCandidate: false,
+        completedCount: 0,
+        totalCount: 0,
+        remainingNodes: [],
+      };
     }
 
     const totalNodes = latestSnapshot.nodes.length;
-    const completedNodes = latestSnapshot.nodes.filter(n => {
+    const completedNodes = latestSnapshot.nodes.filter((n) => {
       const mapping = n.mappings[0];
       return mapping && mapping.mappingStatus === MappingStatus.COMPLETED;
     });
 
-    const remainingNodes = latestSnapshot.nodes.filter(n => {
+    const remainingNodes = latestSnapshot.nodes.filter((n) => {
       const mapping = n.mappings[0];
-      return !mapping || (mapping.mappingStatus !== MappingStatus.COMPLETED && mapping.mappingStatus !== MappingStatus.SKIPPED);
+      return (
+        !mapping ||
+        (mapping.mappingStatus !== MappingStatus.COMPLETED &&
+          mapping.mappingStatus !== MappingStatus.SKIPPED)
+      );
     });
 
     const isCandidate = totalNodes > 0 && remainingNodes.length === 0;
@@ -325,7 +365,7 @@ export class RoadmapService {
       isCandidate,
       completedCount: completedNodes.length,
       totalCount: totalNodes,
-      remainingNodes: remainingNodes.map(n => ({ id: n.id, title: n.title })),
+      remainingNodes: remainingNodes.map((n) => ({ id: n.id, title: n.title })),
     };
   }
 
@@ -333,11 +373,15 @@ export class RoadmapService {
     const candidate = await this.checkCompletionCandidate(userId, roadmapId);
 
     if (!confirm) {
-      throw new BadRequestException('Completion review was not confirmed by user.');
+      throw new BadRequestException(
+        'Completion review was not confirmed by user.',
+      );
     }
 
     if (!candidate.isCandidate) {
-      throw new BadRequestException(`Cannot complete roadmap. ${candidate.remainingNodes.length} required nodes remain unfulfilled.`);
+      throw new BadRequestException(
+        `Cannot complete roadmap. ${candidate.remainingNodes.length} required nodes remain unfulfilled.`,
+      );
     }
 
     return this.updateRoadmapStatus(userId, roadmapId, RoadmapStatus.COMPLETED);
@@ -350,57 +394,83 @@ export class RoadmapService {
     const roadmap = await this.getRoadmapById(userId, roadmapId);
     const latestSnapshot = roadmap.snapshots[0];
 
-    const targetNode = latestSnapshot?.nodes.find(n => n.id === nodeId);
+    const targetNode = latestSnapshot?.nodes.find((n) => n.id === nodeId);
     if (!targetNode) {
       throw new NotFoundException(`RoadmapNode with ID ${nodeId} not found.`);
     }
 
     // Traverse downstream nodes that list targetNode.externalNodeId in dependencies
-    const dependentNodes = latestSnapshot.nodes.filter(n =>
-      n.dependencies.includes(targetNode.externalNodeId)
+    const dependentNodes = latestSnapshot.nodes.filter((n) =>
+      n.dependencies.includes(targetNode.externalNodeId),
     );
 
     return {
       targetNode: { id: targetNode.id, title: targetNode.title },
-      blockedDependentNodes: dependentNodes.map(n => ({ id: n.id, title: n.title })),
-      impactWarning: dependentNodes.length > 0
-        ? `Skipping "${targetNode.title}" will block ${dependentNodes.length} downstream dependent topics.`
-        : `Skipping "${targetNode.title}" has no downstream dependency impacts.`,
+      blockedDependentNodes: dependentNodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+      })),
+      impactWarning:
+        dependentNodes.length > 0
+          ? `Skipping "${targetNode.title}" will block ${dependentNodes.length} downstream dependent topics.`
+          : `Skipping "${targetNode.title}" has no downstream dependency impacts.`,
     };
   }
 
-  async updateMapping(userId: string, mappingId: string, dto: UpdateMappingDto) {
+  async updateMapping(
+    userId: string,
+    mappingId: string,
+    dto: UpdateMappingDto,
+  ) {
     const mapping = await this.prisma.roadmapMapping.findUnique({
       where: { id: mappingId },
     });
 
     if (!mapping) {
-      throw new NotFoundException(`RoadmapMapping with ID ${mappingId} not found.`);
+      throw new NotFoundException(
+        `RoadmapMapping with ID ${mappingId} not found.`,
+      );
     }
 
     if (mapping.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to modify this roadmap mapping.');
+      throw new ForbiddenException(
+        'You do not have permission to modify this roadmap mapping.',
+      );
     }
 
     // Verify entity ownership
     if (dto.journeyId) {
-      const journey = await this.prisma.journey.findUnique({ where: { id: dto.journeyId } });
-      if (!journey || journey.userId !== userId) throw new ForbiddenException('Target Journey access denied.');
+      const journey = await this.prisma.journey.findUnique({
+        where: { id: dto.journeyId },
+      });
+      if (!journey || journey.userId !== userId)
+        throw new ForbiddenException('Target Journey access denied.');
     }
 
     if (dto.taskId) {
-      const task = await this.prisma.task.findUnique({ where: { id: dto.taskId }, include: { journey: true } });
-      if (!task || task.journey?.userId !== userId) throw new ForbiddenException('Target Task access denied.');
+      const task = await this.prisma.task.findUnique({
+        where: { id: dto.taskId },
+        include: { journey: true },
+      });
+      if (!task || task.journey?.userId !== userId)
+        throw new ForbiddenException('Target Task access denied.');
     }
 
     if (dto.projectId) {
-      const project = await this.prisma.project.findUnique({ where: { id: dto.projectId }, include: { journey: true } });
-      if (!project || project.journey?.userId !== userId) throw new ForbiddenException('Target Project access denied.');
+      const project = await this.prisma.project.findUnique({
+        where: { id: dto.projectId },
+        include: { journey: true },
+      });
+      if (!project || project.journey?.userId !== userId)
+        throw new ForbiddenException('Target Project access denied.');
     }
 
     if (dto.skillId) {
-      const skill = await this.prisma.skill.findUnique({ where: { id: dto.skillId } });
-      if (!skill) throw new NotFoundException(`Skill with ID ${dto.skillId} not found.`);
+      const skill = await this.prisma.skill.findUnique({
+        where: { id: dto.skillId },
+      });
+      if (!skill)
+        throw new NotFoundException(`Skill with ID ${dto.skillId} not found.`);
     }
 
     return this.prisma.roadmapMapping.update({

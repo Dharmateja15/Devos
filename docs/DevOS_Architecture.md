@@ -1,10 +1,17 @@
 # DevOS — System Architecture Document
-**Version:** 1.1  
+**Version:** 1.2  
 **Author:** Staff Software Architect  
 **Date:** August 2026  
-**Status:** Approved (Roadmap Intelligence Update)
+**Status:** Approved (Current Repository Reconciled)
+
+> STATUS: CURRENT DOCUMENT  
+> Last reconciled: 2026-08-16  
+> Authority: Current repository implementation  
+>  
+> Historical planning assumptions that conflict with the repository are explicitly marked HISTORICAL.
 
 ---
+
 
 ## Table of Contents
 
@@ -1185,15 +1192,16 @@ Each source adapter must implement a common normalized representation.
 | Backend runtime | Node.js (TypeScript) | GitHub SDK maturity, async I/O for GitHub sync |
 | API framework | NestJS | Module system maps cleanly to bounded contexts |
 | ORM | Prisma (with raw SQL for analytics) | Type-safe, migration support |
-| Frontend | Next.js 15 (App Router) | SSR for public profiles/SEO, RSC for dashboard |
-| Auth library | Custom (passport-jwt + passport-github) | Full control over token lifecycle |
-| Queue | BullMQ (Redis-backed) | MVP; simple, battle-tested |
-| Cache | Redis | Sessions, rate limiting, caching |
-| File storage | S3-compatible (Cloudflare R2) | Certificates, uploaded evidence |
+| Frontend | Next.js 16.3.0 (App Router) | SSR for public profiles/SEO, RSC for dashboard (Updated from Next.js 15 plan) |
+| Auth library | Custom (passport-jwt RS256 + passport-github) | Full control over token lifecycle |
+| Queue | Outbox pattern (`events.outbox`) + Redis | Transactional event handling & CSV locks |
+| Cache | Redis 7 | Sessions, OAuth state, rate limiting, CSV preview locks |
+| File storage | S3-compatible (Cloudflare R2 / Local) | Certificates, uploaded evidence |
 | Monorepo | Turborepo | Shared types, fast builds |
-| CI/CD | GitHub Actions | Native GitHub integration |
-| Hosting (MVP) | Railway or Render | Managed Postgres + Redis, low ops overhead |
-| Hosting (scale) | AWS (ECS + RDS + ElastiCache) | Mature, fine-grained control |
+| CI/CD | GitHub Actions | Ephemeral Postgres migration deploy & turbo build |
+| Hosting (Testing) | Vercel (Web) / Render (API) | Current active testing deployments |
+| Hosting (Production Target) | PaaS (Railway / Render) or AWS | Architect decision pending for final production host |
+
 
 ---
 

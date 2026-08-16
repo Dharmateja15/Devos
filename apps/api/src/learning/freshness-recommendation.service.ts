@@ -1,9 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CapabilityFreshnessService, FreshnessState } from './capability-freshness.service';
+import {
+  CapabilityFreshnessService,
+  FreshnessState,
+} from './capability-freshness.service';
 import { LearnerState } from '@prisma/client';
 
-export type RecommendationType = 'REVIEW' | 'PRACTICE' | 'LEARN' | 'PROGRESSION';
+export type RecommendationType =
+  'REVIEW' | 'PRACTICE' | 'LEARN' | 'PROGRESSION';
 
 export interface FreshnessRecommendationDto {
   conceptId: string;
@@ -28,7 +36,7 @@ export interface RoadmapFreshnessRecommendationsResponseDto {
 export class FreshnessRecommendationService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly freshnessService: CapabilityFreshnessService
+    private readonly freshnessService: CapabilityFreshnessService,
   ) {}
 
   /**
@@ -36,7 +44,7 @@ export class FreshnessRecommendationService {
    */
   async getRoadmapFreshnessRecommendations(
     userId: string,
-    roadmapId: string
+    roadmapId: string,
   ): Promise<RoadmapFreshnessRecommendationsResponseDto> {
     // 1. Verify Roadmap Ownership
     const roadmap = await this.prisma.roadmap.findUnique({
@@ -55,16 +63,22 @@ export class FreshnessRecommendationService {
     }
 
     if (roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to view recommendations for this roadmap.');
+      throw new ForbiddenException(
+        'You do not have permission to view recommendations for this roadmap.',
+      );
     }
 
     const activeSnapshot = roadmap.snapshots[0];
     const roadmapNodes = activeSnapshot?.nodes || [];
 
     // Fetch user freshness evaluation
-    const freshnessRes = await this.freshnessService.getCapabilityFreshness(userId);
+    const freshnessRes =
+      await this.freshnessService.getCapabilityFreshness(userId);
     const freshnessMap = new Map(
-      freshnessRes.freshnessList.map(f => [f.capabilityTitle.toLowerCase(), f])
+      freshnessRes.freshnessList.map((f) => [
+        f.capabilityTitle.toLowerCase(),
+        f,
+      ]),
     );
 
     // Fetch learner concept states to check userIntent and nextReviewAt
@@ -73,7 +87,7 @@ export class FreshnessRecommendationService {
       include: { concept: true },
     });
     const stateMap = new Map(
-      learnerStates.map(s => [s.concept.title.toLowerCase(), s])
+      learnerStates.map((s) => [s.concept.title.toLowerCase(), s]),
     );
 
     const now = new Date();
@@ -94,8 +108,12 @@ export class FreshnessRecommendationService {
       }
 
       const freshnessItem = freshnessMap.get(nodeTitleLower);
-      const learnerState = stateRecord?.state || freshnessItem?.learnerState || LearnerState.UNKNOWN;
-      const freshnessState = freshnessItem?.freshnessState || 'UNKNOWN_FRESHNESS';
+      const learnerState =
+        stateRecord?.state ||
+        freshnessItem?.learnerState ||
+        LearnerState.UNKNOWN;
+      const freshnessState =
+        freshnessItem?.freshnessState || 'UNKNOWN_FRESHNESS';
       const lastDemonstratedAt = freshnessItem?.lastDemonstratedAt;
 
       let recType: RecommendationType = 'LEARN';
@@ -109,7 +127,8 @@ export class FreshnessRecommendationService {
           whyReason = `Concept "${node.title}" was mastered previously, but no activity observed in >60 days. Advisory refresher recommended.`;
         } else if (freshnessState === 'AGING') {
           recType = 'PROGRESSION';
-          reason = 'Mastered concept is aging; normal progression with optional reinforcement.';
+          reason =
+            'Mastered concept is aging; normal progression with optional reinforcement.';
           whyReason = `Concept "${node.title}" is mastered with aging recency (31-60 days). Safe to progress or briefly review.`;
         } else {
           recType = 'PROGRESSION';
@@ -120,7 +139,10 @@ export class FreshnessRecommendationService {
         recType = 'REVIEW';
         reason = 'Concept is marked as needing review.';
         whyReason = `Concept "${node.title}" requires review based on prior evaluation.`;
-      } else if (learnerState === LearnerState.ASSESSED || learnerState === LearnerState.SELF_REPORTED) {
+      } else if (
+        learnerState === LearnerState.ASSESSED ||
+        learnerState === LearnerState.SELF_REPORTED
+      ) {
         recType = 'PRACTICE';
         reason = 'Concept requires practical application or verification.';
         whyReason = `Concept "${node.title}" is in ${learnerState} state. Practical application task recommended.`;
@@ -151,7 +173,11 @@ export class FreshnessRecommendationService {
       PROGRESSION: 3,
     };
 
-    recommendations.sort((a, b) => priorityOrder[a.recommendationType] - priorityOrder[b.recommendationType]);
+    recommendations.sort(
+      (a, b) =>
+        priorityOrder[a.recommendationType] -
+        priorityOrder[b.recommendationType],
+    );
 
     return {
       roadmapId: roadmap.id,

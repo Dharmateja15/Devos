@@ -18,15 +18,15 @@ describe('RecommendationService', () => {
           useValue: {
             concept: {
               findMany: jest.fn(),
-            }
+            },
           },
         },
         {
           provide: LearningService,
           useValue: {
             isStale: jest.fn(),
-          }
-        }
+          },
+        },
       ],
     }).compile();
 
@@ -45,7 +45,13 @@ describe('RecommendationService', () => {
   // 17. Scheduled/deferred item resurfaces correctly
   it('Deferred concepts are skipped in recommendations if future', async () => {
     jest.spyOn(prisma.concept, 'findMany').mockResolvedValue([
-      { id: 'c1', title: 'C1', learnerStates: [{ state: LearnerState.UNKNOWN, nextReviewAt: new Date(2050, 1, 1) }] }
+      {
+        id: 'c1',
+        title: 'C1',
+        learnerStates: [
+          { state: LearnerState.UNKNOWN, nextReviewAt: new Date(2050, 1, 1) },
+        ],
+      },
     ] as any);
     jest.spyOn(learningService, 'isStale').mockReturnValue(false);
 
@@ -56,7 +62,11 @@ describe('RecommendationService', () => {
   // 19. STALE recommends review/reinforcement
   it('MASTERED + STALE recommends REVIEW', async () => {
     jest.spyOn(prisma.concept, 'findMany').mockResolvedValue([
-      { id: 'c1', title: 'C1', learnerStates: [{ state: LearnerState.MASTERED }] }
+      {
+        id: 'c1',
+        title: 'C1',
+        learnerStates: [{ state: LearnerState.MASTERED }],
+      },
     ] as any);
     jest.spyOn(learningService, 'isStale').mockReturnValue(true);
 
@@ -67,7 +77,11 @@ describe('RecommendationService', () => {
 
   it('MASTERED + FRESH recommends PROGRESSION', async () => {
     jest.spyOn(prisma.concept, 'findMany').mockResolvedValue([
-      { id: 'c1', title: 'C1', learnerStates: [{ state: LearnerState.MASTERED }] }
+      {
+        id: 'c1',
+        title: 'C1',
+        learnerStates: [{ state: LearnerState.MASTERED }],
+      },
     ] as any);
     jest.spyOn(learningService, 'isStale').mockReturnValue(false);
 
@@ -77,10 +91,26 @@ describe('RecommendationService', () => {
 
   it('Sorts REVIEW before PRACTICE before LEARN before PROGRESSION', async () => {
     jest.spyOn(prisma.concept, 'findMany').mockResolvedValue([
-      { id: 'c1', title: 'Unknown', learnerStates: [{ state: LearnerState.UNKNOWN }] },
-      { id: 'c2', title: 'Assessed', learnerStates: [{ state: LearnerState.ASSESSED }] },
-      { id: 'c3', title: 'NeedsReview', learnerStates: [{ state: LearnerState.NEEDS_REVIEW }] },
-      { id: 'c4', title: 'Mastered', learnerStates: [{ state: LearnerState.MASTERED }] }
+      {
+        id: 'c1',
+        title: 'Unknown',
+        learnerStates: [{ state: LearnerState.UNKNOWN }],
+      },
+      {
+        id: 'c2',
+        title: 'Assessed',
+        learnerStates: [{ state: LearnerState.ASSESSED }],
+      },
+      {
+        id: 'c3',
+        title: 'NeedsReview',
+        learnerStates: [{ state: LearnerState.NEEDS_REVIEW }],
+      },
+      {
+        id: 'c4',
+        title: 'Mastered',
+        learnerStates: [{ state: LearnerState.MASTERED }],
+      },
     ] as any);
     jest.spyOn(learningService, 'isStale').mockImplementation((date) => false);
 

@@ -3,25 +3,8 @@
 import React, { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
+import { useIntelligence } from '../../../context/IntelligenceContext';
 import { fetchRoadmapById, RoadmapDto, RoadmapNodeDto, ApiError } from '../../../lib/api/roadmap-client';
-import {
-  fetchDiscoveredCapabilities,
-  fetchCapabilityFreshness,
-  fetchRoadmapFreshnessRecommendations,
-  fetchConflicts,
-  fetchRecommendationSuppression,
-  fetchPaceAdaptation,
-  fetchProjectGaps,
-  CapabilityFreshnessResponseDto,
-  ConflictAnalysisDto,
-  PaceAdaptationDto,
-  ProjectGapResult,
-  CapabilityFreshnessDto,
-  FreshnessRecommendationDto,
-  ConceptSuppressionDto,
-  DiscoveredCapabilityDto,
-} from '../../../lib/api/intelligence-client';
-import { createNodeIntelligenceMap, NodeMappedIntelligence } from '../../../lib/utils/intelligence-mapper';
 import { RoadmapHeader } from '../../../components/roadmap/RoadmapHeader';
 import { RoadmapBreadcrumb } from '../../../components/roadmap/RoadmapBreadcrumb';
 import { RoadmapCanvas } from '../../../components/roadmap/RoadmapCanvas';
@@ -31,6 +14,13 @@ import { GoalImpactModal } from '../../../components/roadmap/GoalImpactModal';
 export default function RoadmapDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { accessToken } = useAuth();
+  const {
+    loadRoadmapIntelligence,
+    freshnessSummary,
+    conflicts,
+    paceAdaptation,
+    getNodeIntelligenceMap,
+  } = useIntelligence();
   const router = useRouter();
 
   const [roadmap, setRoadmap] = useState<RoadmapDto | null>(null);
@@ -38,16 +28,6 @@ export default function RoadmapDetailPage({ params }: { params: Promise<{ id: st
   const [error, setError] = useState<{ status: number; message: string } | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isImpactModalOpen, setIsImpactModalOpen] = useState(false);
-
-  // Phase 5B Real-Time Intelligence State
-  const [freshnessSummary, setFreshnessSummary] = useState<CapabilityFreshnessResponseDto['summary'] | null>(null);
-  const [freshnessList, setFreshnessList] = useState<CapabilityFreshnessDto[]>([]);
-  const [freshnessRecommendations, setFreshnessRecommendations] = useState<FreshnessRecommendationDto[]>([]);
-  const [conflicts, setConflicts] = useState<ConflictAnalysisDto[]>([]);
-  const [suppressionList, setSuppressionList] = useState<ConceptSuppressionDto[]>([]);
-  const [paceAdaptation, setPaceAdaptation] = useState<PaceAdaptationDto | null>(null);
-  const [projectGaps, setProjectGaps] = useState<ProjectGapResult[]>([]);
-  const [discoveredCapabilities, setDiscoveredCapabilities] = useState<DiscoveredCapabilityDto[]>([]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -57,40 +37,10 @@ export default function RoadmapDetailPage({ params }: { params: Promise<{ id: st
       const roadmapData = await fetchRoadmapById(id, accessToken);
       setRoadmap(roadmapData);
 
-      // 2. Fetch Phase 5B Real-Time Intelligence (Parallel Execution - Zero N+1)
-      try {
-        const [
-          discoveredRes,
-          freshnessRes,
-          freshnessRecsRes,
-          conflictsRes,
-          suppressionRes,
-          paceRes,
-          gapsRes,
-        ] = await Promise.all([
-          fetchDiscoveredCapabilities(accessToken).catch(() => null),
-          fetchCapabilityFreshness(accessToken).catch(() => null),
-          fetchRoadmapFreshnessRecommendations(id, accessToken).catch(() => null),
-          fetchConflicts(accessToken).catch(() => []),
-          fetchRecommendationSuppression(accessToken).catch(() => null),
-          fetchPaceAdaptation(id, accessToken).catch(() => null),
-          fetchProjectGaps(id, accessToken).catch(() => null),
-        ]);
-
-        if (discoveredRes?.capabilities) setDiscoveredCapabilities(discoveredRes.capabilities);
-        if (freshnessRes?.summary) {
-          setFreshnessSummary(freshnessRes.summary);
-          setFreshnessList(freshnessRes.freshnessList || []);
-        }
-        if (freshnessRecsRes?.recommendations) setFreshnessRecommendations(freshnessRecsRes.recommendations);
-        if (conflictsRes) setConflicts(conflictsRes);
-        if (suppressionRes?.suppressionList) setSuppressionList(suppressionRes.suppressionList);
-        if (paceRes) setPaceAdaptation(paceRes);
-        if (gapsRes?.gaps) setProjectGaps(gapsRes.gaps);
-      } catch (intelErr) {
-        // Intelligence failures degrade gracefully without blocking roadmap viewing
+      // 2. Fetch Phase 5B Real-Time Intelligence via Context Provider (Orchestration Layer)
+      loadRoadmapIntelligence(id).catch(intelErr => {
         console.warn('Phase 5B Intelligence overlay degraded gracefully:', intelErr);
-      }
+      });
 
       setIsLoading(false);
     } catch (err: any) {
@@ -112,18 +62,10 @@ export default function RoadmapDetailPage({ params }: { params: Promise<{ id: st
     return roadmap?.snapshots?.[0]?.nodes || [];
   }, [roadmap]);
 
-  // Pure in-memory intelligence lookup map keyed by nodeId
-  const nodeIntelligenceMap: Map<string, NodeMappedIntelligence> = useMemo(() => {
-    return createNodeIntelligenceMap(
-      flatNodes,
-      projectGaps,
-      freshnessList,
-      freshnessRecommendations,
-      conflicts,
-      suppressionList,
-      discoveredCapabilities
-    );
-  }, [flatNodes, projectGaps, freshnessList, freshnessRecommendations, conflicts, suppressionList, discoveredCapabilities]);
+  // Pure in-memory intelligence lookup map keyed by nodeId via IntelligenceContext helper
+  const nodeIntelligenceMap = useMemo(() => {
+    return getNodeIntelligenceMap(flatNodes);
+  }, [flatNodes, getNodeIntelligenceMap]);
 
   // Fast map lookup for node navigation
   const nodeMap = useMemo(() => {
@@ -251,9 +193,6 @@ export default function RoadmapDetailPage({ params }: { params: Promise<{ id: st
         roadmap={roadmap}
         nodeCount={totalCount}
         completedCount={completedCount}
-        paceAdaptation={paceAdaptation}
-        freshnessSummary={freshnessSummary}
-        conflictsCount={conflicts.length}
         onOpenGoalImpactModal={() => setIsImpactModalOpen(true)}
       />
 
@@ -286,6 +225,7 @@ export default function RoadmapDetailPage({ params }: { params: Promise<{ id: st
         onSelfReportSuccess={handleSelfReportSuccess}
         accessToken={accessToken}
         mappedIntelligence={selectedNodeId ? nodeIntelligenceMap.get(selectedNodeId) : undefined}
+        paceAdaptation={paceAdaptation}
       />
 
       {/* Goal Change Impact Preview Modal */}

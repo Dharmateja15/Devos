@@ -1,7 +1,10 @@
 import { Controller, Post, Param, Body, Get, Req } from '@nestjs/common';
 import { LearningService } from './learning.service';
 import type { MasteryCheckOptions, UserIntent } from './learning.service';
-import { RecommendationService, Recommendation } from './recommendation/recommendation.service';
+import {
+  RecommendationService,
+  Recommendation,
+} from './recommendation/recommendation.service';
 import { ConflictResolutionService } from './conflict-resolution.service';
 import { RecommendationSuppressionService } from './recommendation-suppression.service';
 
@@ -11,7 +14,7 @@ export class LearningController {
     private readonly learningService: LearningService,
     private readonly recommendationService: RecommendationService,
     private readonly conflictResolutionService: ConflictResolutionService,
-    private readonly suppressionService: RecommendationSuppressionService
+    private readonly suppressionService: RecommendationSuppressionService,
   ) {}
 
   @Get('recommendations')
@@ -37,7 +40,7 @@ export class LearningController {
   @Post('concept/:conceptId/self-report')
   async selfReportConcept(
     @Param('conceptId') conceptId: string,
-    @Req() req: any
+    @Req() req: any,
   ) {
     const userId = req?.user?.id || 'default-user-id';
     return this.learningService.selfReportConcept(userId, conceptId);
@@ -47,7 +50,7 @@ export class LearningController {
   async evaluateTaskEvidence(
     @Param('conceptId') conceptId: string,
     @Body('taskId') taskId: string,
-    @Req() req: any
+    @Req() req: any,
   ) {
     const userId = req?.user?.id || 'default-user-id';
     return this.learningService.evaluateTaskEvidence(userId, conceptId, taskId);
@@ -57,7 +60,7 @@ export class LearningController {
   async submitMasteryCheck(
     @Param('conceptId') conceptId: string,
     @Body() options: MasteryCheckOptions,
-    @Req() req: any
+    @Req() req: any,
   ) {
     const userId = req?.user?.id || 'default-user-id';
     return this.learningService.submitMasteryCheck(userId, conceptId, options);
@@ -68,7 +71,7 @@ export class LearningController {
     @Param('conceptId') conceptId: string,
     @Body('intent') intent: UserIntent,
     @Body('date') dateString: string,
-    @Req() req: any
+    @Req() req: any,
   ) {
     const userId = req?.user?.id || 'default-user-id';
     const date = dateString ? new Date(dateString) : undefined;

@@ -42,17 +42,42 @@ export function RoadmapNodeCard({
     }
   };
 
-  // Extract 5B Overlay Indicators
+  // Extract 6 Supported Node Intelligence Signals
   const freshness = mappedIntelligence?.freshness;
   const conflict = mappedIntelligence?.conflict;
   const projectGap = mappedIntelligence?.projectGap;
+  const freshnessRecommendation = mappedIntelligence?.freshnessRecommendation;
+  const suppression = mappedIntelligence?.suppression;
+  const discoveredCapability = mappedIntelligence?.discoveredCapability;
+
+  const hasOverlayRow = Boolean(
+    conflict ||
+    projectGap ||
+    freshnessRecommendation ||
+    suppression?.isSuppressed ||
+    suppression?.priorityReduced ||
+    discoveredCapability?.isCandidate ||
+    freshness?.freshnessState === 'STALE'
+  );
+
+  const ariaLabel = [
+    node.title,
+    node.nodeType,
+    isKnown ? 'Completed' : null,
+    freshness?.freshnessState && freshness.freshnessState !== 'UNKNOWN_FRESHNESS' ? `Freshness: ${freshness.freshnessState}` : null,
+    conflict ? `Conflict: ${conflict.whyReason}` : null,
+    projectGap ? `Project Gap: ${projectGap.gapStatus}` : null,
+    freshnessRecommendation ? `Recommendation: ${freshnessRecommendation.recommendationType}` : null,
+    suppression?.isSuppressed ? 'Suppressed' : null,
+    discoveredCapability?.isCandidate ? 'Discovered candidate' : null,
+  ].filter(Boolean).join(', ');
 
   return (
     <div
       role="treeitem"
       aria-selected={isSelected}
       aria-expanded={hasChildren ? isExpanded : undefined}
-      aria-label={`${node.title}, ${node.nodeType}${isKnown ? ', Completed' : ''}${freshness?.freshnessState ? `, Freshness: ${freshness.freshnessState}` : ''}`}
+      aria-label={ariaLabel}
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={e => {
@@ -83,7 +108,7 @@ export function RoadmapNodeCard({
             </span>
           )}
 
-          {/* Reserved 5A Extension Slot 1: Freshness Overlay */}
+          {/* Signal 1: Freshness State Dot Indicator */}
           {freshness?.freshnessState && freshness.freshnessState !== 'UNKNOWN_FRESHNESS' && (
             <span
               className={`w-2.5 h-2.5 rounded-full inline-block ${
@@ -93,7 +118,7 @@ export function RoadmapNodeCard({
                   ? 'bg-amber-500'
                   : 'bg-red-500'
               }`}
-              title={`Freshness: ${freshness.freshnessState} (${Math.round((freshness.recencyScore || 0) * 100)}%)`}
+              title={`Freshness: ${freshness.freshnessState}${freshness.recencyScore !== null && freshness.recencyScore !== undefined ? ` (${Math.round(freshness.recencyScore * 100)}%)` : ''}`}
               aria-label={`Freshness: ${freshness.freshnessState}`}
             />
           )}
@@ -118,30 +143,33 @@ export function RoadmapNodeCard({
         </div>
       </div>
 
-      {/* Reserved 5A Extension Slots 2 & 3: Conflict & Project Gap Overlay Row */}
-      {(conflict || projectGap || (freshness?.freshnessState === 'STALE')) && (
-        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2 flex-wrap text-[11px]">
-          {/* Freshness Stale Tag */}
+      {/* Extension Intelligence Overlay Badges Row */}
+      {hasOverlayRow && (
+        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap text-[11px]">
+          {/* Signal 1 Badge: Stale Freshness Tag */}
           {freshness?.freshnessState === 'STALE' && (
-            <span className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">
+            <span
+              className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200"
+              title="Knowledge is stale. Review recommended."
+            >
               Stale
             </span>
           )}
 
-          {/* Reserved Slot 2: Conflict Overlay Badge */}
+          {/* Signal 2 Badge: Evidence Conflict Alert */}
           {conflict && (
             <span
               className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200"
               title={`Conflict: ${conflict.whyReason}`}
             >
-              <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               Conflict Alert
             </span>
           )}
 
-          {/* Reserved Slot 3: Project Gap Overlay Badge */}
+          {/* Signal 3 Badge: Project Gap Overlay */}
           {projectGap && (
             <span
               className={`inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded border ${
@@ -153,12 +181,48 @@ export function RoadmapNodeCard({
                   ? 'bg-purple-50 text-purple-700 border-purple-200'
                   : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}
-              title={`Project Gap: ${projectGap.gapStatus}`}
+              title={`Project Gap: ${projectGap.gapStatus}${projectGap.whyReason ? ` - ${projectGap.whyReason}` : ''}`}
             >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
               Project {projectGap.gapStatus}
+            </span>
+          )}
+
+          {/* Signal 4 Badge: Freshness Recommendation */}
+          {freshnessRecommendation && (
+            <span
+              className="inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200"
+              title={`Recommendation: ${freshnessRecommendation.recommendationType} - ${freshnessRecommendation.reason}`}
+            >
+              <svg className="w-3 h-3 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Rec: {freshnessRecommendation.recommendationType}
+            </span>
+          )}
+
+          {/* Signal 5 Badge: Recommendation Suppression */}
+          {suppression && (suppression.isSuppressed || suppression.priorityReduced) && (
+            <span
+              className="inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"
+              title={`Suppression: ${suppression.reason}${suppression.userIntent ? ` (${suppression.userIntent})` : ''}`}
+            >
+              {suppression.isSuppressed ? 'Suppressed' : 'Priority Reduced'}
+            </span>
+          )}
+
+          {/* Signal 6 Badge: Discovered Candidate Capability */}
+          {discoveredCapability?.isCandidate && (
+            <span
+              className="inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200"
+              title={`Discovered Capability Candidate: ${discoveredCapability.conceptTitle} (${discoveredCapability.signalStrength} signal)`}
+            >
+              <svg className="w-3 h-3 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Discovered
             </span>
           )}
         </div>

@@ -1,8 +1,18 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoadmapReconciliationService } from './roadmap-reconciliation.service';
 import { TasksService } from '../journeys/tasks.service';
-import { MappingStatus, TaskPriority, RoadmapStatus, RoadmapPriority } from '@prisma/client';
+import {
+  MappingStatus,
+  TaskPriority,
+  RoadmapStatus,
+  RoadmapPriority,
+} from '@prisma/client';
 
 export interface DailyFocusItem {
   taskId?: string;
@@ -35,7 +45,11 @@ export class RoadmapMaterializationService {
    * Materializes actionable roadmap nodes into DevOS Tasks for a given snapshot/roadmap.
    * Strictly requires roadmap status === ACTIVE. Paused/Archived roadmaps cannot materialize tasks.
    */
-  async materializeActionableTasks(userId: string, roadmapId: string, options?: MaterializeOptions) {
+  async materializeActionableTasks(
+    userId: string,
+    roadmapId: string,
+    options?: MaterializeOptions,
+  ) {
     const roadmap = await this.prisma.roadmap.findUnique({
       where: { id: roadmapId },
       include: {
@@ -61,11 +75,15 @@ export class RoadmapMaterializationService {
     }
 
     if (roadmap.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to materialize this roadmap.');
+      throw new ForbiddenException(
+        'You do not have permission to materialize this roadmap.',
+      );
     }
 
     if (roadmap.status !== RoadmapStatus.ACTIVE) {
-      throw new BadRequestException(`Cannot materialize tasks for roadmap in state ${roadmap.status}. Resume roadmap to active status.`);
+      throw new BadRequestException(
+        `Cannot materialize tasks for roadmap in state ${roadmap.status}. Resume roadmap to active status.`,
+      );
     }
 
     const latestSnapshot = roadmap.snapshots[0];
@@ -92,7 +110,9 @@ export class RoadmapMaterializationService {
       });
 
       if (!activeJourney || activeJourney.milestones.length === 0) {
-        throw new BadRequestException('An active Journey with at least one Milestone is required to materialize roadmap tasks.');
+        throw new BadRequestException(
+          'An active Journey with at least one Milestone is required to materialize roadmap tasks.',
+        );
       }
 
       journeyId = activeJourney.id;
@@ -100,7 +120,10 @@ export class RoadmapMaterializationService {
     }
 
     // Get current position & actionable nodes
-    const position = await this.reconciliationService.calculateCurrentPosition(userId, latestSnapshot.id);
+    const position = await this.reconciliationService.calculateCurrentPosition(
+      userId,
+      latestSnapshot.id,
+    );
     const actionableNodes = position.nextActionableNodes.slice(0, maxTasks);
 
     const materializedTasks = [];
@@ -109,9 +132,17 @@ export class RoadmapMaterializationService {
       const mapping = node.mappings[0];
 
       // Skip if already mapped to task/project or completed/skipped
-      if (mapping && (mapping.taskId || mapping.projectId || mapping.mappingStatus === MappingStatus.COMPLETED || mapping.mappingStatus === MappingStatus.SKIPPED)) {
+      if (
+        mapping &&
+        (mapping.taskId ||
+          mapping.projectId ||
+          mapping.mappingStatus === MappingStatus.COMPLETED ||
+          mapping.mappingStatus === MappingStatus.SKIPPED)
+      ) {
         if (mapping.taskId) {
-          const existingTask = await this.prisma.task.findUnique({ where: { id: mapping.taskId } });
+          const existingTask = await this.prisma.task.findUnique({
+            where: { id: mapping.taskId },
+          });
           if (existingTask) {
             materializedTasks.push(existingTask);
             continue;
@@ -141,9 +172,10 @@ export class RoadmapMaterializationService {
       }
 
       // Materialize new DevOS Task via TasksService
-      const newTask = await this.tasksService.createTask(userId, milestoneId!, {
+      const newTask = await this.tasksService.createTask(userId, milestoneId, {
         title: node.title,
-        description: node.description || `Materialized from roadmap ${roadmap.title}`,
+        description:
+          node.description || `Materialized from roadmap ${roadmap.title}`,
       });
 
       if (mapping) {
@@ -166,7 +198,10 @@ export class RoadmapMaterializationService {
    * Generates Daily Focus recommendations across ACTIVE user roadmaps.
    * Paused, Completed, or Archived roadmaps are strictly excluded.
    */
-  async getDailyFocus(userId: string, availableHours: number = 2.5): Promise<DailyFocusItem[]> {
+  async getDailyFocus(
+    userId: string,
+    availableHours: number = 2.5,
+  ): Promise<DailyFocusItem[]> {
     const activeRoadmaps = await this.prisma.roadmap.findMany({
       where: {
         userId,
@@ -203,18 +238,28 @@ export class RoadmapMaterializationService {
       if (!latestSnapshot) continue;
 
       const roadmapPriority = roadmap.priority;
-      const position = await this.reconciliationService.calculateCurrentPosition(userId, latestSnapshot.id);
+      const position =
+        await this.reconciliationService.calculateCurrentPosition(
+          userId,
+          latestSnapshot.id,
+        );
 
       for (const node of position.nextActionableNodes) {
         const mapping = node.mappings[0];
 
-        if (mapping && (mapping.mappingStatus === MappingStatus.COMPLETED || mapping.mappingStatus === MappingStatus.SKIPPED)) {
+        if (
+          mapping &&
+          (mapping.mappingStatus === MappingStatus.COMPLETED ||
+            mapping.mappingStatus === MappingStatus.SKIPPED)
+        ) {
           continue;
         }
 
         let priority: TaskPriority = TaskPriority.MEDIUM;
-        if (roadmapPriority === RoadmapPriority.PRIMARY) priority = TaskPriority.HIGH;
-        else if (roadmapPriority === RoadmapPriority.LOW) priority = TaskPriority.LOW;
+        if (roadmapPriority === RoadmapPriority.PRIMARY)
+          priority = TaskPriority.HIGH;
+        else if (roadmapPriority === RoadmapPriority.LOW)
+          priority = TaskPriority.LOW;
 
         const whyReason = `Prioritized for goal "${roadmap.title}" because this is the next actionable node in your ${roadmapPriority} roadmap "${roadmap.title}" and prerequisites are satisfied.`;
 

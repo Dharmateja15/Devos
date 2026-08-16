@@ -1,8 +1,43 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Get, Res, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Get,
+  Res,
+  Req,
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { Response, Request } from 'express';
+
+export class RegisterDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  username: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password: string;
+}
+
+export class LoginDto {
+  @IsString()
+  @IsNotEmpty()
+  identity: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password: string;
+}
 
 @Controller('api/v1/auth')
 export class AuthController {
@@ -19,22 +54,24 @@ export class AuthController {
     });
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('register')
-  async register(@Body() body: any, @Res({ passthrough: true }) res: Response) {
-    if (!body.email || !body.password || !body.username) {
-      return { error: 'Missing fields' };
-    }
+  async register(
+    @Body() body: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { accessToken, refreshToken } = await this.authService.register(body);
     this.setRefreshCookie(res, refreshToken);
     return { accessToken };
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: any, @Res({ passthrough: true }) res: Response) {
-    if (!body.identity || !body.password) {
-      return { error: 'Missing fields' };
-    }
+  async login(
+    @Body() body: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { accessToken, refreshToken } = await this.authService.login(body);
     this.setRefreshCookie(res, refreshToken);
     return { accessToken };
@@ -42,9 +79,13 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const oldRefreshToken = req.cookies?.['refresh_token'];
-    const { accessToken, refreshToken } = await this.authService.refresh(oldRefreshToken);
+    const { accessToken, refreshToken } =
+      await this.authService.refresh(oldRefreshToken);
     this.setRefreshCookie(res, refreshToken);
     return { accessToken };
   }

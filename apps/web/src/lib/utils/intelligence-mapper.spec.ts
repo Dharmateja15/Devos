@@ -59,8 +59,8 @@ describe('intelligence-mapper (Sub-Block 5B Invariants)', () => {
       recommendedAdjustments: ['Focus on Topic 1'],
     };
 
-    expect(impactDto.affectedNodeIds.includes(nodes[0].id)).toBe(true);
-    expect(impactDto.affectedNodeIds.includes(nodes[1].id)).toBe(false);
+    expect(impactDto.affectedNodeIds?.includes(nodes[0].id)).toBe(true);
+    expect(impactDto.affectedNodeIds?.includes(nodes[1].id)).toBe(false);
   });
 
   it('3. Canonical conceptId mapping takes precedence over title', () => {

@@ -20,13 +20,15 @@ describe('Roadmap Adapters', () => {
     });
 
     it('rejects invalid string that is neither URL nor JSON', async () => {
-      await expect(adapter.normalize('invalid-string')).rejects.toThrow(BadRequestException);
+      await expect(adapter.normalize('invalid-string')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('normalizes mock JSON correctly', async () => {
       const mockJson = JSON.stringify({
         title: 'Test Roadmap',
-        nodes: [{ id: 'n1', title: 'Node 1', type: 'skill' }]
+        nodes: [{ id: 'n1', title: 'Node 1', type: 'skill' }],
       });
       const result = await adapter.normalize(mockJson);
       expect(result.sourceType).toBe(RoadmapSourceType.ROADMAP_SH);

@@ -1,8 +1,18 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GitHubClientAdapter, ManifestFileContent, GitHubRepoMetadata } from './github-client.adapter';
+import {
+  GitHubClientAdapter,
+  ManifestFileContent,
+  GitHubRepoMetadata,
+} from './github-client.adapter';
 import { SubmitGitHubRepoDto } from './dto/github-evidence.dto';
 import { EvidenceType, AuthProvider, RoadmapNodeType } from '@prisma/client';
+import { decryptToken } from '../common/crypto.util';
 
 export enum GitHubVerificationStatus {
   REPOSITORY_OWNER_VERIFIED = 'REPOSITORY_OWNER_VERIFIED',
@@ -15,7 +25,7 @@ export enum GitHubVerificationStatus {
 export class GitHubEvidenceService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly githubAdapter: GitHubClientAdapter
+    private readonly githubAdapter: GitHubClientAdapter,
   ) {}
 
   /**
@@ -23,7 +33,9 @@ export class GitHubEvidenceService {
    */
   async submitGitHubRepository(userId: string, dto: SubmitGitHubRepoDto) {
     // 1. Validate & Parse URL (SSRF Safe)
-    const { owner, repo } = this.githubAdapter.parseAndSanitizeGitHubUrl(dto.repoUrl);
+    const { owner, repo } = this.githubAdapter.parseAndSanitizeGitHubUrl(
+      dto.repoUrl,
+    );
     const normalizedRepo = `${owner}/${repo}`.toLowerCase();
 
     // 2. Explicit Ownership Validation for projectId and taskId
@@ -37,7 +49,9 @@ export class GitHubEvidenceService {
         include: { journey: true },
       });
       if (!project || project.deletedAt || project.journey.deletedAt) {
-        throw new NotFoundException(`Project with ID ${dto.projectId} not found.`);
+        throw new NotFoundException(
+          `Project with ID ${dto.projectId} not found.`,
+        );
       }
       if (project.journey.userId !== userId) {
         throw new ForbiddenException('You do not own the specified project.');
@@ -58,7 +72,9 @@ export class GitHubEvidenceService {
         throw new ForbiddenException('You do not own the specified task.');
       }
       if (validatedJourneyId && task.journeyId !== validatedJourneyId) {
-        throw new BadRequestException('Specified taskId and projectId belong to different journeys.');
+        throw new BadRequestException(
+          'Specified taskId and projectId belong to different journeys.',
+        );
       }
       validatedTaskId = task.id;
       validatedJourneyId = task.journeyId;
@@ -72,22 +88,35 @@ export class GitHubEvidenceService {
       },
     });
 
-    const accessToken = oauthAccount?.accessToken || undefined;
+    const accessToken = oauthAccount?.accessToken
+      ? decryptToken(oauthAccount.accessToken) || undefined
+      : undefined;
 
     // 4. Fetch GitHub Repository & Commit Metadata via Adapter
-    const repoMeta = await this.githubAdapter.fetchRepoMetadata(owner, repo, accessToken);
-    const commitMeta = await this.githubAdapter.fetchCommitMetadata(owner, repo, undefined, accessToken);
-
-    // 5. Determine Identity Verification Status
-    const { verificationStatus, isVerified, identityNotes } = this.determineVerificationStatus(
-      oauthAccount,
-      repoMeta,
-      commitMeta
+    const repoMeta = await this.githubAdapter.fetchRepoMetadata(
+      owner,
+      repo,
+      accessToken,
+    );
+    const commitMeta = await this.githubAdapter.fetchCommitMetadata(
+      owner,
+      repo,
+      undefined,
+      accessToken,
     );
 
+    // 5. Determine Identity Verification Status
+    const { verificationStatus, isVerified, identityNotes } =
+      this.determineVerificationStatus(oauthAccount, repoMeta, commitMeta);
+
     // 6. Fetch Static Manifests & Detect Technologies
-    const manifests = await this.githubAdapter.fetchManifestContents(owner, repo, accessToken);
-    const detectedTechnologies = this.detectTechnologiesFromManifests(manifests);
+    const manifests = await this.githubAdapter.fetchManifestContents(
+      owner,
+      repo,
+      accessToken,
+    );
+    const detectedTechnologies =
+      this.detectTechnologiesFromManifests(manifests);
 
     // 7. Deduplicate & Persist EvidenceItem (Repository-level: githubSha is null)
     const existingEvidence = await this.prisma.evidenceItem.findFirst({
@@ -107,7 +136,7 @@ export class GitHubEvidenceService {
       defaultBranch: repoMeta.defaultBranch,
       isPrivate: repoMeta.isPrivate,
       latestCommitSha: commitMeta.sha,
-      inspectedManifests: manifests.map(m => m.filename),
+      inspectedManifests: manifests.map((m) => m.filename),
       whyReason: `Submitted repository ${repoMeta.fullName} inspected. Detected tech stack: [${detectedTechnologies.join(', ')}]. Verification status: ${verificationStatus}.`,
     };
 
@@ -126,8 +155,11 @@ export class GitHubEvidenceService {
           taskId: validatedTaskId || existingEvidence.taskId,
           journeyId: validatedJourneyId || existingEvidence.journeyId,
           githubRepo: normalizedRepo,
-          githubAuthor: commitMeta.authorGitHubLogin || commitMeta.authorName || owner,
-          githubEventAt: commitMeta.committedAt ? new Date(commitMeta.committedAt) : new Date(),
+          githubAuthor:
+            commitMeta.authorGitHubLogin || commitMeta.authorName || owner,
+          githubEventAt: commitMeta.committedAt
+            ? new Date(commitMeta.committedAt)
+            : new Date(),
           metadata: metadataPayload,
         },
       });
@@ -140,14 +172,19 @@ export class GitHubEvidenceService {
           taskId: validatedTaskId || null,
           evidenceType: EvidenceType.GITHUB_REPO,
           title: `GitHub Repository: ${repoMeta.fullName}`,
-          description: repoMeta.description || `Repository evidence for ${repoMeta.fullName}`,
+          description:
+            repoMeta.description ||
+            `Repository evidence for ${repoMeta.fullName}`,
           url: repoMeta.htmlUrl,
           verified: isVerified,
           verifiedAt: isVerified ? new Date() : null,
           githubRepo: normalizedRepo,
           githubSha: null,
-          githubAuthor: commitMeta.authorGitHubLogin || commitMeta.authorName || owner,
-          githubEventAt: commitMeta.committedAt ? new Date(commitMeta.committedAt) : new Date(),
+          githubAuthor:
+            commitMeta.authorGitHubLogin || commitMeta.authorName || owner,
+          githubEventAt: commitMeta.committedAt
+            ? new Date(commitMeta.committedAt)
+            : new Date(),
           metadata: metadataPayload,
         },
       });
@@ -182,14 +219,23 @@ export class GitHubEvidenceService {
     });
 
     if (!oauthAccount || !oauthAccount.accessToken) {
-      return { observedCount: 0, createdEvidenceCount: 0, reason: 'No connected GitHub OAuth account.' };
+      return {
+        observedCount: 0,
+        createdEvidenceCount: 0,
+        reason: 'No connected GitHub OAuth account.',
+      };
     }
 
     // 1. Enumerate connected account repositories via GET /user/repos
-    const userRepos: GitHubRepoMetadata[] = await this.githubAdapter.fetchUserRepositories(oauthAccount.accessToken);
+    const userRepos: GitHubRepoMetadata[] =
+      await this.githubAdapter.fetchUserRepositories(oauthAccount.accessToken);
 
     if (userRepos.length === 0) {
-      return { observedCount: 0, createdEvidenceCount: 0, reason: 'No repositories found for connected GitHub account.' };
+      return {
+        observedCount: 0,
+        createdEvidenceCount: 0,
+        reason: 'No repositories found for connected GitHub account.',
+      };
     }
 
     // 2. Fetch learner's active roadmaps, project nodes, and existing projects for deterministic relevance matching
@@ -210,22 +256,27 @@ export class GitHubEvidenceService {
 
     // Collect required technology signals from active project nodes and user projects
     const targetTechStack = new Set<string>();
-    activeRoadmaps.forEach(rm => {
-      rm.snapshots[0]?.nodes.forEach(n => {
+    activeRoadmaps.forEach((rm) => {
+      rm.snapshots[0]?.nodes.forEach((n) => {
         if (n.nodeType === RoadmapNodeType.PROJECT) {
-          if (n.dependencies) n.dependencies.forEach(d => targetTechStack.add(d.toLowerCase()));
-          const metaSkills = (n.metadata as Record<string, any>)?.requiredSkills;
-          if (Array.isArray(metaSkills)) metaSkills.forEach(s => targetTechStack.add(String(s).toLowerCase()));
+          if (n.dependencies)
+            n.dependencies.forEach((d) => targetTechStack.add(d.toLowerCase()));
+          const metaSkills = (n.metadata as Record<string, any>)
+            ?.requiredSkills;
+          if (Array.isArray(metaSkills))
+            metaSkills.forEach((s) =>
+              targetTechStack.add(String(s).toLowerCase()),
+            );
         }
       });
     });
 
-    userProjects.forEach(p => {
-      p.techStack.forEach(t => targetTechStack.add(t.toLowerCase()));
+    userProjects.forEach((p) => {
+      p.techStack.forEach((t) => targetTechStack.add(t.toLowerCase()));
     });
 
     const existingProjectRepoUrls = new Set(
-      userProjects.map(p => p.repoUrl?.toLowerCase()).filter(Boolean)
+      userProjects.map((p) => p.repoUrl?.toLowerCase()).filter(Boolean),
     );
 
     let createdEvidenceCount = 0;
@@ -242,11 +293,14 @@ export class GitHubEvidenceService {
       const manifests = await this.githubAdapter.fetchManifestContents(
         repoMeta.owner,
         repoMeta.name,
-        oauthAccount.accessToken
+        oauthAccount.accessToken,
       );
-      const detectedTechnologies = this.detectTechnologiesFromManifests(manifests);
+      const detectedTechnologies =
+        this.detectTechnologiesFromManifests(manifests);
 
-      const hasTechOverlap = detectedTechnologies.some(tech => targetTechStack.has(tech.toLowerCase()));
+      const hasTechOverlap = detectedTechnologies.some((tech) =>
+        targetTechStack.has(tech.toLowerCase()),
+      );
 
       // Deterministic Passive Relevance Filter:
       // Must have either explicit Project.repoUrl match OR verified technology manifest overlap!
@@ -260,14 +314,11 @@ export class GitHubEvidenceService {
         repoMeta.owner,
         repoMeta.name,
         undefined,
-        oauthAccount.accessToken
+        oauthAccount.accessToken,
       );
 
-      const { verificationStatus, isVerified, identityNotes } = this.determineVerificationStatus(
-        oauthAccount,
-        repoMeta,
-        commitMeta
-      );
+      const { verificationStatus, isVerified, identityNotes } =
+        this.determineVerificationStatus(oauthAccount, repoMeta, commitMeta);
 
       const existingEvidence = await this.prisma.evidenceItem.findFirst({
         where: {
@@ -286,7 +337,7 @@ export class GitHubEvidenceService {
         defaultBranch: repoMeta.defaultBranch,
         isPrivate: repoMeta.isPrivate,
         latestCommitSha: commitMeta.sha,
-        inspectedManifests: manifests.map(m => m.filename),
+        inspectedManifests: manifests.map((m) => m.filename),
         whyReason: `Passively discovered repository ${repoMeta.fullName} passed deterministic relevance filter. Detected tech stack: [${detectedTechnologies.join(', ')}]. Verification status: ${verificationStatus}.`,
       };
 
@@ -296,14 +347,21 @@ export class GitHubEvidenceService {
             userId,
             evidenceType: EvidenceType.GITHUB_REPO,
             title: `GitHub Repository: ${repoMeta.fullName}`,
-            description: repoMeta.description || `Passively discovered repository ${repoMeta.fullName}`,
+            description:
+              repoMeta.description ||
+              `Passively discovered repository ${repoMeta.fullName}`,
             url: repoMeta.htmlUrl,
             verified: isVerified,
             verifiedAt: isVerified ? new Date() : null,
             githubRepo: normalizedRepo,
             githubSha: null,
-            githubAuthor: commitMeta.authorGitHubLogin || commitMeta.authorName || repoMeta.owner,
-            githubEventAt: commitMeta.committedAt ? new Date(commitMeta.committedAt) : new Date(),
+            githubAuthor:
+              commitMeta.authorGitHubLogin ||
+              commitMeta.authorName ||
+              repoMeta.owner,
+            githubEventAt: commitMeta.committedAt
+              ? new Date(commitMeta.committedAt)
+              : new Date(),
             metadata: metadataPayload,
           },
         });
@@ -341,13 +399,19 @@ export class GitHubEvidenceService {
   private determineVerificationStatus(
     oauthAccount: any,
     repoMeta: GitHubRepoMetadata,
-    commitMeta: any
-  ): { verificationStatus: GitHubVerificationStatus; isVerified: boolean; identityNotes: string } {
+    commitMeta: any,
+  ): {
+    verificationStatus: GitHubVerificationStatus;
+    isVerified: boolean;
+    identityNotes: string;
+  } {
     if (!oauthAccount) {
       return {
-        verificationStatus: GitHubVerificationStatus.PUBLIC_REPOSITORY_SUBMISSION,
+        verificationStatus:
+          GitHubVerificationStatus.PUBLIC_REPOSITORY_SUBMISSION,
         isVerified: false,
-        identityNotes: 'No connected GitHub OAuth account found. Evidence recorded as unverified public submission.',
+        identityNotes:
+          'No connected GitHub OAuth account found. Evidence recorded as unverified public submission.',
       };
     }
 
@@ -356,7 +420,8 @@ export class GitHubEvidenceService {
     // 1. REPOSITORY_OWNER_VERIFIED: OAuth providerId matches repo ownerId or repo ownerLogin
     if (
       (repoMeta.ownerId && repoMeta.ownerId === connectedProviderId) ||
-      (repoMeta.ownerLogin && repoMeta.ownerLogin.toLowerCase() === connectedProviderId.toLowerCase())
+      (repoMeta.ownerLogin &&
+        repoMeta.ownerLogin.toLowerCase() === connectedProviderId.toLowerCase())
     ) {
       return {
         verificationStatus: GitHubVerificationStatus.REPOSITORY_OWNER_VERIFIED,
@@ -366,9 +431,14 @@ export class GitHubEvidenceService {
     }
 
     // 2. CONNECTED_ACCOUNT_ASSOCIATION: Repo belongs to user's account namespace
-    if (repoMeta.fullName.toLowerCase().startsWith(`${connectedProviderId.toLowerCase()}/`)) {
+    if (
+      repoMeta.fullName
+        .toLowerCase()
+        .startsWith(`${connectedProviderId.toLowerCase()}/`)
+    ) {
       return {
-        verificationStatus: GitHubVerificationStatus.CONNECTED_ACCOUNT_ASSOCIATION,
+        verificationStatus:
+          GitHubVerificationStatus.CONNECTED_ACCOUNT_ASSOCIATION,
         isVerified: true,
         identityNotes: `Repository namespace matches connected GitHub OAuth account (${connectedProviderId}).`,
       };
@@ -376,8 +446,11 @@ export class GitHubEvidenceService {
 
     // 3. COMMIT_AUTHOR_MATCH: Canonical GitHub user ID or Login matches OAuth providerId
     if (
-      (commitMeta.authorGitHubId && commitMeta.authorGitHubId === connectedProviderId) ||
-      (commitMeta.authorGitHubLogin && commitMeta.authorGitHubLogin.toLowerCase() === connectedProviderId.toLowerCase())
+      (commitMeta.authorGitHubId &&
+        commitMeta.authorGitHubId === connectedProviderId) ||
+      (commitMeta.authorGitHubLogin &&
+        commitMeta.authorGitHubLogin.toLowerCase() ===
+          connectedProviderId.toLowerCase())
     ) {
       return {
         verificationStatus: GitHubVerificationStatus.COMMIT_AUTHOR_MATCH,
@@ -401,7 +474,9 @@ export class GitHubEvidenceService {
   /**
    * Deterministic Manifest Technology Detector
    */
-  private detectTechnologiesFromManifests(manifests: ManifestFileContent[]): string[] {
+  private detectTechnologiesFromManifests(
+    manifests: ManifestFileContent[],
+  ): string[] {
     const detected = new Set<string>();
 
     for (const file of manifests) {
@@ -415,7 +490,11 @@ export class GitHubEvidenceService {
         if (content.includes('"next"')) detected.add('Next.js');
         if (content.includes('"@nestjs/core"')) detected.add('NestJS');
         if (content.includes('"express"')) detected.add('Express');
-        if (content.includes('"prisma"') || content.includes('"@prisma/client"')) detected.add('Prisma');
+        if (
+          content.includes('"prisma"') ||
+          content.includes('"@prisma/client"')
+        )
+          detected.add('Prisma');
         if (content.includes('"tailwindcss"')) detected.add('TailwindCSS');
       }
 
@@ -424,7 +503,8 @@ export class GitHubEvidenceService {
         if (content.includes('fastapi')) detected.add('FastAPI');
         if (content.includes('django')) detected.add('Django');
         if (content.includes('flask')) detected.add('Flask');
-        if (content.includes('torch') || content.includes('pytorch')) detected.add('PyTorch');
+        if (content.includes('torch') || content.includes('pytorch'))
+          detected.add('PyTorch');
         if (content.includes('tensorflow')) detected.add('TensorFlow');
       }
 

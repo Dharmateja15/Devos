@@ -3,11 +3,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { GitHubOAuthController } from './github-oauth.controller';
+import { GitHubOAuthService } from './github-oauth.service';
 import { JwtStrategy } from './jwt.strategy';
 import * as fs from 'fs';
 
-let privateKey = process.env.JWT_PRIVATE_KEY || 'test';
-let publicKey = process.env.JWT_PUBLIC_KEY || 'test';
+const privateKey = process.env.JWT_PRIVATE_KEY || 'test';
+const publicKey = process.env.JWT_PUBLIC_KEY || 'test';
 
 if (privateKey === 'test' && fs.existsSync('../../.env')) {
   // Mock fallback logic if env vars not fully loaded in some tests
@@ -19,14 +21,14 @@ if (privateKey === 'test' && fs.existsSync('../../.env')) {
     JwtModule.register({
       privateKey: process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       publicKey: process.env.JWT_PUBLIC_KEY?.replace(/\\n/g, '\n'),
-      signOptions: { 
-        expiresIn: '15m', 
-        algorithm: 'RS256' 
+      signOptions: {
+        expiresIn: '15m',
+        algorithm: 'RS256',
       },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  controllers: [AuthController, GitHubOAuthController],
+  providers: [AuthService, GitHubOAuthService, JwtStrategy],
+  exports: [AuthService, GitHubOAuthService],
 })
 export class AuthModule {}

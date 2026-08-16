@@ -374,6 +374,7 @@ model Milestone {
   tasks   Task[]
   notes   Note[]
 
+  @@index([journeyId])
   @@map("milestones")
   @@schema("journey")
 }
@@ -403,6 +404,8 @@ model Task {
   skills          TaskSkill[]
   roadmapMappings RoadmapMapping[]
 
+  @@index([milestoneId])
+  @@index([journeyId])
   @@map("tasks")
   @@schema("journey")
 }
@@ -532,6 +535,7 @@ model EvidenceItem {
   task    Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  @@index([userId, journeyId])
   @@map("evidence_items")
   @@schema("evidence")
 }
@@ -550,6 +554,7 @@ model XpLedger {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   journey Journey? @relation(fields: [journeyId], references: [id], onDelete: SetNull)
 
+  @@index([userId, sourceType, sourceId])
   @@map("xp_ledger")
   @@schema("gamification")
 }

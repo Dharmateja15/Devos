@@ -9,7 +9,8 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
 
   const now = new Date();
 
-  const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const daysAgo = (days: number) =>
+    new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
   beforeEach(async () => {
     prismaService = {
@@ -17,8 +18,16 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
       project: { findMany: jest.fn().mockResolvedValue([]) },
       task: { findMany: jest.fn().mockResolvedValue([]) },
       learnerConceptState: { findMany: jest.fn().mockResolvedValue([]) },
-      concept: { findMany: jest.fn().mockResolvedValue([{ id: 'c-ts', title: 'TypeScript' }]) },
-      skill: { findMany: jest.fn().mockResolvedValue([{ id: 's-nest', name: 'NestJS' }]) },
+      concept: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'c-ts', title: 'TypeScript' }]),
+      },
+      skill: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 's-nest', name: 'NestJS' }]),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -28,7 +37,9 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
       ],
     }).compile();
 
-    service = module.get<CapabilityFreshnessService>(CapabilityFreshnessService);
+    service = module.get<CapabilityFreshnessService>(
+      CapabilityFreshnessService,
+    );
   });
 
   describe('Deterministic Boundary Tests & Recency Score', () => {
@@ -47,7 +58,7 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
       const res = await service.getCapabilityFreshness('user-1');
 
       expect(res.freshnessList[0].freshnessState).toBe('FRESH');
-      expect(res.freshnessList[0].recencyScore).toBe(1.00);
+      expect(res.freshnessList[0].recencyScore).toBe(1.0);
       expect(res.summary.freshCount).toBe(1);
     });
 
@@ -138,7 +149,7 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
       const res = await service.getCapabilityFreshness('user-1');
 
       expect(res.freshnessList[0].freshnessState).toBe('STALE');
-      expect(res.freshnessList[0].recencyScore).toBe(0.00); // Bounded at 0.00!
+      expect(res.freshnessList[0].recencyScore).toBe(0.0); // Bounded at 0.00!
     });
 
     it('7. No timestamp -> UNKNOWN_FRESHNESS (Recency score = null)', async () => {
@@ -155,7 +166,9 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
 
       const res = await service.getCapabilityFreshness('user-1');
 
-      const docker = res.freshnessList.find(f => f.capabilityTitle === 'Docker');
+      const docker = res.freshnessList.find(
+        (f) => f.capabilityTitle === 'Docker',
+      );
       expect(docker?.freshnessState).toBe('UNKNOWN_FRESHNESS');
       expect(docker?.recencyScore).toBeNull();
     });
@@ -239,11 +252,15 @@ describe('CapabilityFreshnessService (Sub-Block 6C - Requirement L)', () => {
 
       const res = await service.getCapabilityFreshness('user-1');
 
-      const tsItem = res.freshnessList.find(f => f.capabilityTitle === 'TypeScript');
+      const tsItem = res.freshnessList.find(
+        (f) => f.capabilityTitle === 'TypeScript',
+      );
       expect(tsItem?.learnerState).toBe(LearnerState.ASSESSED);
       expect(tsItem?.freshnessState).toBe('STALE'); // Retains ASSESSED state!
 
-      const dockerItem = res.freshnessList.find(f => f.capabilityTitle === 'Docker');
+      const dockerItem = res.freshnessList.find(
+        (f) => f.capabilityTitle === 'Docker',
+      );
       expect(dockerItem?.learnerState).toBe(LearnerState.UNKNOWN); // UNKNOWN state remains UNKNOWN!
       expect(prismaService.learnerConceptState.update).toBeUndefined();
     });

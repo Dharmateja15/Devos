@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { EvidenceService } from './evidence.service';
 import { GitHubEvidenceService } from './github-evidence.service';
 import { SubmitGitHubRepoDto } from './dto/github-evidence.dto';
@@ -10,7 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class EvidenceController {
   constructor(
     private readonly evidenceService: EvidenceService,
-    private readonly githubEvidenceService: GitHubEvidenceService
+    private readonly githubEvidenceService: GitHubEvidenceService,
   ) {}
 
   @Post()
@@ -24,10 +34,7 @@ export class EvidenceController {
   }
 
   @Get()
-  findAll(
-    @CurrentUser() user: any,
-    @Query('taskId') taskId?: string
-  ) {
+  findAll(@CurrentUser() user: any, @Query('taskId') taskId?: string) {
     return this.evidenceService.getEvidence(user.id, taskId);
   }
 

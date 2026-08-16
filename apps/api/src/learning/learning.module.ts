@@ -21,10 +21,7 @@ import { CapabilitiesController } from './capabilities.controller';
     RecommendationSuppressionService,
     PaceAdaptationService,
   ],
-  controllers: [
-    LearningController,
-    CapabilitiesController,
-  ],
+  controllers: [LearningController, CapabilitiesController],
   exports: [
     CapabilityDiscoveryService,
     CapabilityFreshnessService,

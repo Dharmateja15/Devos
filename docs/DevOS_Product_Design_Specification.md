@@ -1,10 +1,17 @@
 # DevOS — Product Design Specification
-**Version:** 1.1  
+**Version:** 1.2  
 **Author:** Product Design  
 **Date:** August 2026  
-**Status:** Approved (Roadmap Intelligence Update)
+**Status:** Approved (Current Repository Reconciled)
+
+> STATUS: CURRENT DOCUMENT  
+> Last reconciled: 2026-08-16  
+> Authority: Current repository implementation  
+>  
+> Historical planning assumptions that conflict with the repository are explicitly marked HISTORICAL.
 
 ---
+
 
 ## Design Philosophy
 

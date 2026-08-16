@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -56,7 +60,7 @@ export class AuthService {
   private async createSession(userId: string) {
     const payload = { sub: userId };
     const accessToken = this.jwtService.sign(payload);
-    
+
     const refreshToken = randomBytes(32).toString('hex');
     const salt = await bcrypt.genSalt(10);
     const refreshTokenHash = await bcrypt.hash(refreshToken, salt);
@@ -83,7 +87,7 @@ export class AuthService {
       throw new UnauthorizedException('No refresh token provided');
     }
 
-    // Since we only have the plaintext refresh token from the cookie, we need to find all sessions 
+    // Since we only have the plaintext refresh token from the cookie, we need to find all sessions
     // or just assume we don't have the user ID. But usually we need the user ID or session ID in the cookie too.
     // Alternatively, we can just search through valid sessions. But bcrypt.compare cannot be used for searching.
     // Let's modify the refresh token to include the session ID: "sessionId:randomBytes"
@@ -115,7 +119,7 @@ export class AuthService {
     const newRefreshTokenValue = randomBytes(32).toString('hex');
     const salt = await bcrypt.genSalt(10);
     const newRefreshTokenHash = await bcrypt.hash(newRefreshTokenValue, salt);
-    
+
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
@@ -125,11 +129,11 @@ export class AuthService {
         refreshTokenHash: newRefreshTokenHash,
         expiresAt,
         lastActiveAt: new Date(),
-      }
+      },
     });
 
     const accessToken = this.jwtService.sign({ sub: session.userId });
-    
+
     return {
       accessToken,
       refreshToken: `${sessionId}:${newRefreshTokenValue}`,
@@ -141,7 +145,9 @@ export class AuthService {
     const parts = refreshToken.split(':');
     if (parts.length === 2) {
       const sessionId = parts[0];
-      await this.prisma.session.delete({ where: { id: sessionId } }).catch(() => {});
+      await this.prisma.session
+        .delete({ where: { id: sessionId } })
+        .catch(() => {});
     }
   }
 
@@ -157,7 +163,7 @@ export class AuthService {
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
-    
+
     const streak = await this.prisma.streak.findFirst({
       where: { userId },
     });
@@ -171,7 +177,7 @@ export class AuthService {
       xp: xpEntry?.balanceAfter || 0,
       streak: streak?.currentStreak || 0,
       longestStreak: streak?.longestStreak || 0,
-      achievements: achievements.map(a => a.achievement),
+      achievements: achievements.map((a) => a.achievement),
     };
   }
 }
