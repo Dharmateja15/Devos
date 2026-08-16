@@ -40,8 +40,11 @@ DevOS is implemented as a monorepo containing:
 ## 4. Current Deployment State
 
 - **Frontend Testing Deployment**: Vercel (`https://devos-omega.vercel.app`)
-- **Backend Testing Deployment**: Render
-- **Historical Note**: Railway was referenced in initial June 2026 design documents as an alternative hosting candidate. Render is currently used for API testing deployment. Final production API provider selection requires architect confirmation.
+- **Backend Testing Deployment**: Render (Singapore region, `devos-api` Web Service)
+- **PostgreSQL Testing Provider**: Neon (Managed PostgreSQL)
+- **Redis Infrastructure State**: Unprovisioned on Render (`REDIS_URL` currently missing in Render `devos-api` environment variables; Render logs indicate connection attempts failing until Redis instance is provisioned and linked)
+- **Historical Provider Reference**: Railway was referenced in initial June 2026 design documents as an alternative hosting candidate. Railway is an original planning reference only and is NOT the current testing deployment provider.
+
 
 ---
 
